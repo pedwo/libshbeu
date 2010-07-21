@@ -1,0 +1,12 @@
+prefix=
+exec_prefix=
+libdir=${pcfiledir}/src
+includedir=${pcfiledir}/include
+
+Name: shbeu uninstalled
+Description: A library for controlling SH-Mobile BEU
+Requires:
+Version: @VERSION@
+Libs: -L${libdir} -lshbeu
+Libs.private:
+Cflags: -I${includedir}

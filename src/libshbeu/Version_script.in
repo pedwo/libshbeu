@@ -1,0 +1,19 @@
+#
+# Export file for libshbeu
+#
+# Only the symbols listed in the global section will be callable from
+# applications linking to libuiomux.
+#
+
+@PACKAGE@.so.0.0
+{
+        global:
+		shbeu_open;
+		shbeu_close;
+		shbeu_start_blend;
+		shbeu_wait;
+		shbeu_blend;
+		
+        local:
+                *;
+};

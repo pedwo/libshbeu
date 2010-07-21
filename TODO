@@ -1,0 +1,4 @@
+This is a loosely-categorized list of outstanding tasks and ideas for improving
+libshbeu. When implementing any of these, please include an update to this TODO
+file removing that task, in the same commit.
+
