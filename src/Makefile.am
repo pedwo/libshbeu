@@ -1,1 +1,1 @@
-SUBDIRS = libshbeu
+SUBDIRS = libshbeu tools

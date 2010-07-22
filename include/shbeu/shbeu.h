@@ -98,7 +98,7 @@ typedef struct SHBEU SHBEU;
  * \param width  Width in pixels
  * \param height Height in pixels
  * \param pitch  Line pitch
- * \param fmt    Format (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
+ * \param format Format (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
  */
 typedef struct {
 	unsigned long y;
@@ -107,7 +107,7 @@ typedef struct {
 	unsigned long width;
 	unsigned long height;
 	unsigned long pitch;
-	int fmt;
+	int format;
 } beu_surface_t;
 
 

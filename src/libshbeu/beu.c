@@ -95,7 +95,7 @@ err:
 void disp_surface(const char * s, beu_surface_t *surface)
 {
 	fprintf(stderr, "%s: fmt=%d: width=%lu, height=%lu pitch=%lu\n",
-		s, surface->fmt, surface->width, surface->height, surface->pitch);
+		s, surface->format, surface->width, surface->height, surface->pitch);
 }
 
 

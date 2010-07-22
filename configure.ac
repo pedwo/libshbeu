@@ -264,6 +264,7 @@ include/shbeu/Makefile
 src/Makefile
 src/libshbeu/Version_script
 src/libshbeu/Makefile
+src/tools/Makefile
 shbeu.pc
 shbeu-uninstalled.pc
 ])
