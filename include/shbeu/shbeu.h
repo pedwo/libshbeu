@@ -91,6 +91,25 @@ extern "C" {
 struct SHBEU;
 typedef struct SHBEU SHBEU;
 
+/** Surface specification
+ * \param y      Physical address of Y or RGB plane
+ * \param c      Physical address of CbCr plane (ignored for RGB)
+ * \param a      Physical address of alpha plane (ignored for RGB/dst)
+ * \param width  Width in pixels
+ * \param height Height in pixels
+ * \param pitch  Line pitch
+ * \param fmt    Format (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
+ */
+typedef struct {
+	unsigned long y;
+	unsigned long c;
+	unsigned long alpha;
+	unsigned long width;
+	unsigned long height;
+	unsigned long pitch;
+	int fmt;
+} beu_surface_t;
+
 
 /**
  * Open a BEU device.
@@ -104,39 +123,18 @@ SHBEU *shbeu_open(void);
  */
 void shbeu_close(SHBEU *beu);
 
-
 /** Start a surface blend
  * \param beu BEU handle
- * \param src_py Physical address of Y or RGB plane of source image
- * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
- * \param src_width Width in pixels of source image
- * \param src_height Height in pixels of source image
- * \param src_pitch Line pitch of source image
- * \param src_fmt Format of source image  (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
- * \param dst_py Physical address of Y or RGB plane of destination image
- * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
- * \param dst_width Width in pixels of destination image
- * \param dst_height Height in pixels of destination image
- * \param dst_pitch Line pitch of destination image
- * \param dst_fmt Format of destination image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
  * \retval 0 Success
  * \retval -1 Error
  */
 int
 shbeu_start_blend(
 	SHBEU *beu,
-	unsigned long src_py,
-	unsigned long src_pc,
-	unsigned long src_width,
-	unsigned long src_height,
-	unsigned long src_pitch,
-	int src_fmt,
-	unsigned long dst_py,
-	unsigned long dst_pc,
-	unsigned long dst_width,
-	unsigned long dst_height,
-	unsigned long dst_pitch,
-	int dst_fmt);
+	beu_surface_t *src1,
+	beu_surface_t *src2,
+	beu_surface_t *src3,
+	beu_surface_t *dest);
 
 /** Wait for a BEU operation to complete. The operation is started by a call to shbeu_start_blend.
  * \param beu BEU handle
@@ -146,32 +144,16 @@ shbeu_wait(SHBEU *beu);
 
 /** Perform a surface blend
  * \param beu BEU handle
- * \param src_py Physical address of Y or RGB plane of source image
- * \param src_pc Physical address of CbCr plane of source image (ignored for RGB)
- * \param src_width Width in pixels of source image
- * \param src_height Height in pixels of source image
- * \param src_fmt Format of source image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565)
- * \param dst_py Physical address of Y or RGB plane of destination image
- * \param dst_pc Physical address of CbCr plane of destination image (ignored for RGB)
- * \param dst_width Width in pixels of destination image
- * \param dst_height Height in pixels of destination image
- * \param dst_fmt Format of destination image (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565)
  * \retval 0 Success
  * \retval -1 Error: Unsupported parameters
  */
 int
 shbeu_blend(
 	SHBEU *beu,
-	unsigned long src_py,
-	unsigned long src_pc,
-	unsigned long src_width,
-	unsigned long src_height,
-	int src_fmt,
-	unsigned long dst_py,
-	unsigned long dst_pc,
-	unsigned long dst_width,
-	unsigned long dst_height,
-	int dst_fmt);
+	beu_surface_t *src1,
+	beu_surface_t *src2,
+	beu_surface_t *src3,
+	beu_surface_t *dest);
 
 #ifdef __cplusplus
 }

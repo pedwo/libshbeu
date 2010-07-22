@@ -37,7 +37,6 @@ struct uio_map {
 struct SHBEU {
 	UIOMux *uiomux;
 	struct uio_map uio_mmio;
-	struct uio_map uio_mem;
 };
 
 
@@ -86,13 +85,6 @@ SHBEU *shbeu_open(void)
 	if (!ret)
 		goto err;
 
-	ret = uiomux_get_mem (beu->uiomux, UIOMUX_SH_BEU,
-		&beu->uio_mem.address,
-		&beu->uio_mem.size,
-		&beu->uio_mem.iomem);
-	if (!ret)
-		goto err;
-
 	return beu;
 
 err:
@@ -100,37 +92,35 @@ err:
 	return 0;
 }
 
+void disp_surface(const char * s, beu_surface_t *surface)
+{
+	fprintf(stderr, "%s: fmt=%d: width=%lu, height=%lu pitch=%lu\n",
+		s, surface->fmt, surface->width, surface->height, surface->pitch);
+}
+
+
 int
 shbeu_start_blend(
 	SHBEU *pvt,
-	unsigned long src_py,
-	unsigned long src_pc,
-	unsigned long src_width,
-	unsigned long src_height,
-	unsigned long src_pitch,
-	int src_fmt,
-	unsigned long dst_py,
-	unsigned long dst_pc,
-	unsigned long dst_width,
-	unsigned long dst_height,
-	unsigned long dst_pitch,
-	int dst_fmt)
+	beu_surface_t *src1,
+	beu_surface_t *src2,
+	beu_surface_t *src3,
+	beu_surface_t *dest)
 {
 	struct uio_map *ump = &pvt->uio_mmio;
 
 #ifdef DEBUG
-	fprintf(stderr, "%s IN\n", __FUNCTION__);
-	fprintf(stderr, "src_fmt=%d: src_width=%lu, src_height=%lu src_pitch=%lu\n",
-		src_fmt, src_width, src_height, src_pitch);
-	fprintf(stderr, "dst_fmt=%d: dst_width=%lu, dst_height=%lu dst_pitch=%lu\n",
-		dst_fmt, dst_width, dst_height, dst_pitch);
-	fprintf(stderr, "rotate=%d\n", rotate);
+	fprintf(stderr, "%s IN\n", __func__);
+	disp_surface("src1", src1);
+	disp_surface("src2", src2);
+	disp_surface("src3", src3);
+	disp_surface("dest", dest);
 #endif
 
 	// TODO
 
 #ifdef DEBUG
-	fprintf(stderr, "%s OUT\n", __FUNCTION__);
+	fprintf(stderr, "%s OUT\n", __func__);
 #endif
 
 	return 0;
@@ -146,29 +136,21 @@ shbeu_wait(SHBEU *pvt)
 	uiomux_unlock(pvt->uiomux, UIOMUX_SH_BEU);
 }
 
+
 int
 shbeu_blend(
-	SHBEU *beu,
-	unsigned long src_py,
-	unsigned long src_pc,
-	unsigned long src_width,
-	unsigned long src_height,
-	int src_fmt,
-	unsigned long dst_py,
-	unsigned long dst_pc,
-	unsigned long dst_width,
-	unsigned long dst_height,
-	int dst_fmt)
+	SHBEU *pvt,
+	beu_surface_t *src1,
+	beu_surface_t *src2,
+	beu_surface_t *src3,
+	beu_surface_t *dest)
 {
 	int ret = 0;
 
-	ret = shbeu_start_blend(
-		beu,
-		src_py, src_pc, src_width, src_height, src_width, src_fmt,
-		dst_py, dst_pc, dst_width, dst_height, dst_width, dst_fmt);
+	ret = shbeu_start_blend(pvt, src1, src2, src3, dest);
 
 	if (ret == 0)
-		shbeu_wait(beu);
+		shbeu_wait(pvt);
 
 	return ret;
 }
