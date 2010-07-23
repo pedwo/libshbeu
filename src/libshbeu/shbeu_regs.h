@@ -29,6 +29,10 @@
 
 
 #define BESTR  0x00		/* start register */
+#define BESTR_BEIVK 1
+#define BESTR_CHON1 (1 << 8)
+#define BESTR_CHON2 (2 << 8)
+#define BESTR_CHON3 (4 << 8)
 
 #define SRC1_BASE 0x10
 #define SRC2_BASE 0x28
@@ -60,6 +64,8 @@
 /* Other registers */
 #define BBLCR0 0x100	/* blend control 0 */
 #define BBLCR1 0x104	/* blend control 1 */
+#define BBLCR1_OUTPUT_MEM (1 << 16)
+
 #define BPROCR 0x108	/* process control */
 #define BMWCR0 0x10c	/* multiwindow control 0 */
 
@@ -78,6 +84,9 @@
 
 
 #define BPKFR   0x140	/* Blend pack form */
+#define BPKFR_RY (1 << 11)
+#define BPKFR_TE (1 << 10)
+
 #define BPCCR0  0x144	/* transparent control */
 #define BPCCR11 0x148	/* transparent control */
 #define BPCCR12 0x14c	/* transparent control */
@@ -102,4 +111,5 @@
 #define CLUT_BASE 0x3000	/* Color Lookup Table */
 
 
+#define BSIFR1_IN1TE (1 << 12)
 #endif /* __SHBEU_REGS_H__ */

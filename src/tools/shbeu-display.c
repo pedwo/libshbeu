@@ -304,9 +304,8 @@ static void draw_rect_rgb565(void *surface, uint16_t color, int x, int y, int w,
 static void blend(
 	SHBEU *beu,
 	DISPLAY *display,
-	beu_surface_t *src,
-	unsigned long x,	/* Centre co-ordinates */
-	unsigned long y)
+	beu_surface_t *src1,
+	beu_surface_t *src2)
 {
 	unsigned char *bb_virt = display_get_back_buff_virt(display);
 	unsigned long  bb_phys = display_get_back_buff_phys(display);
@@ -318,15 +317,18 @@ static void blend(
 	draw_rect_rgb565(bb_virt, BLACK, 0, 0, lcd_w, lcd_h, lcd_w);
 
 	/* Destination surface info */
-	dst.y = bb_phys;
-	dst.c = 0;
-	dst.alpha = 0;
+	dst.py = bb_phys;
+	dst.pc = 0;
+	dst.pa = 0;
+	dst.alpha = 255;
 	dst.width = lcd_w;
 	dst.height = lcd_h;
 	dst.pitch = lcd_w;
+	dst.x = 0;
+	dst.y = 0;
 	dst.format = V4L2_PIX_FMT_RGB565;
 
-	shbeu_blend(beu, &dst, src, NULL, &dst);
+	shbeu_blend(beu, src1, src2, NULL, &dst);
 
 	display_flip(display);
 }
@@ -344,13 +346,15 @@ int main (int argc, char * argv[])
 	int input_w = -1;
 	int input_h = -1;
 	int input_colorspace = -1;
-	unsigned char *src_virt;
+	int w, h;
+	unsigned char *src1_virt;
+	unsigned char *src2_virt;
+	beu_surface_t src1;
+	beu_surface_t src2;
 	int ret;
 	int read_image = 1;
-	int x=0, y=0;
 	int key;
 	int run = 1;
-	beu_surface_t src;
 
 	int show_version = 0;
 	int show_help = 0;
@@ -489,25 +493,53 @@ int main (int argc, char * argv[])
 	}
 
 
-	/* Set up memory buffers */
-	src_virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, input_size, 32);
-	if (!src_virt) {
+	/* Surface 1: static RGB image - same size as display */
+	w = display_get_width(display);
+	h = display_get_height(display);
+	src1_virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, 2*w*h, 32);
+	if (!src1_virt) {
 		perror("uiomux_malloc");
 		goto exit_err;
 	}
-	src.y = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, src_virt);
-	src.c = src.y + (input_w * input_h);
-	src.alpha = 0;
-	src.width = input_w;
-	src.height = input_h;
-	src.pitch = input_w;
-	src.format = input_colorspace;
+	src1.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, src1_virt);
+	src1.pc = 0;
+	src1.pa = 0;
+	src1.alpha = 255;	/* Opaque */
+	src1.width = w;
+	src1.height = h;
+	src1.pitch = w;
+	src1.x = 0;
+	src1.y = 0;
+	src1.format = V4L2_PIX_FMT_RGB565;
+
+	/* Draw a simple picture */
+	draw_rect_rgb565(src1_virt, BLACK,   0,   0,   w,   h, w);
+	draw_rect_rgb565(src1_virt, BLUE,  w/4, h/4, w/4, h/2, w);
+	draw_rect_rgb565(src1_virt, RED,   w/2, h/4, w/4, h/2, w);
+
+
+	/* Surface 2: File input or static RGB image */
+	src2_virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, input_size, 32);
+	if (!src2_virt) {
+		perror("uiomux_malloc");
+		goto exit_err;
+	}
+	src2.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, src2_virt);
+	src2.pc = src2.py + (input_w * input_h);
+	src2.pa = 0;
+	src2.alpha = 255;	/* Semi-transparent */
+	src2.width = input_w;
+	src2.height = input_h;
+	src2.pitch = input_w;
+	src2.x = 0;
+	src2.y = 0;
+	src2.format = input_colorspace;
 
 	if (!infilename) {
 		/* Draw a simple picture */
-		draw_rect_rgb565(src_virt, BLACK, 0,         0,         input_w,   input_h,   input_w);
-		draw_rect_rgb565(src_virt, BLUE,  input_w/4, input_h/4, input_w/4, input_h/2, input_w);
-		draw_rect_rgb565(src_virt, RED,   input_w/2, input_h/4, input_w/4, input_h/2, input_w);
+		draw_rect_rgb565(src2_virt, BLACK, 0,         0,         input_w,   input_h,   input_w);
+		draw_rect_rgb565(src2_virt, BLUE,  input_w/4, input_h/4, input_w/4, input_h/2, input_w);
+		draw_rect_rgb565(src2_virt, RED,   input_w/2, input_h/4, input_w/4, input_h/2, input_w);
 	}
 
 
@@ -517,12 +549,12 @@ int main (int argc, char * argv[])
 	cbreak();
 	keypad(stdscr, TRUE);
 
-	while (run) {
-
+	do
+	{
 		if (infilename && read_image) {
 			read_image = 0;
 			/* Read input */
-			if ((nread = fread (src_virt, 1, input_size, infile)) != input_size) {
+			if ((nread = fread (src2_virt, 1, input_size, infile)) != input_size) {
 				if (nread == 0 && feof (infile)) {
 					break;
 				} else {
@@ -532,26 +564,26 @@ int main (int argc, char * argv[])
 			}
 		}
 
-		blend (beu, display, &src, x, y);
+		blend (beu, display, &src1, &src2);
 
 		key = getch();
 		switch (key)
 		{
 		case '=':
-			x = 0;
-			y = 0;
+			src2.x = 0;
+			src2.y = 0;
 			break;
 		case KEY_UP:
-			y -= 1;
+			src2.y -= 2;
 			break;
 		case KEY_DOWN:
-			y += 1;
+			src2.y += 2;
 			break;
 		case KEY_LEFT:
-			x -= 1;
+			src2.x -= 2;
 			break;
 		case KEY_RIGHT:
-			x += 1;
+			src2.x += 2;
 			break;
 		case ' ':
 			read_image = 1;
@@ -560,7 +592,7 @@ int main (int argc, char * argv[])
 			run = 0;
 			break;
 		}
-	}
+	} while (run);
 
 
 	/* ncurses close */
@@ -570,7 +602,8 @@ int main (int argc, char * argv[])
 
 	display_close(display);
 	shbeu_close(beu);
-	uiomux_free (uiomux, UIOMUX_SH_BEU, src_virt, input_size);
+	uiomux_free (uiomux, UIOMUX_SH_BEU, src1_virt, 2*w*h);
+	uiomux_free (uiomux, UIOMUX_SH_BEU, src2_virt, input_size);
 	uiomux_close (uiomux);
 
 

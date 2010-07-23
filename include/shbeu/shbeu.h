@@ -92,21 +92,27 @@ struct SHBEU;
 typedef struct SHBEU SHBEU;
 
 /** Surface specification
- * \param y      Physical address of Y or RGB plane
- * \param c      Physical address of CbCr plane (ignored for RGB)
- * \param a      Physical address of alpha plane (ignored for RGB/dst)
+ * \param py     Physical address of Y or RGB plane
+ * \param pc     Physical address of CbCr plane (ignored for RGB)
+ * \param pa     Physical address of alpha plane (ignored for RGB/dst)
+ * \param alpha  Fixed alpha value [0..255] for entire surface. Only used if a=0
  * \param width  Width in pixels
  * \param height Height in pixels
  * \param pitch  Line pitch
  * \param format Format (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32)
+ * \param x      Overlay position (horizontal)
+ * \param y      Overlay position (vertical)
  */
 typedef struct {
-	unsigned long y;
-	unsigned long c;
+	unsigned long py;
+	unsigned long pc;
+	unsigned long pa;
 	unsigned long alpha;
 	unsigned long width;
 	unsigned long height;
 	unsigned long pitch;
+	unsigned long x;
+	unsigned long y;
 	int format;
 } beu_surface_t;
 
