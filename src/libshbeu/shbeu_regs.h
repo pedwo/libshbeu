@@ -111,5 +111,19 @@
 #define CLUT_BASE 0x3000	/* Color Lookup Table */
 
 
+/* BSIFRx */
+#define CHRR_YCBCR_422   (1 << 8)
+#define CHRR_YCBCR_420   (2 << 8)
+#define CHRR_aYCBCR_422  (4 << 8)
+#define CHRR_aYCBCR_420  (5 << 8)
+#define RPKF_RGB32       0
+#define RPKF_RGB24       2
+#define RPKF_RGB16       3
+
+/* BPKFR */
+#define WPCK_RGB16       6
+#define WPCK_RGB32       0x13
+
 #define BSIFR1_IN1TE (1 << 12)
+
 #endif /* __SHBEU_REGS_H__ */

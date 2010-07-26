@@ -354,7 +354,7 @@ int main (int argc, char * argv[])
 	int ret;
 	int read_image = 1;
 	int key;
-	int run = 1;
+	int run = 0;
 
 	int show_version = 0;
 	int show_help = 0;
@@ -542,12 +542,11 @@ int main (int argc, char * argv[])
 		draw_rect_rgb565(src2_virt, RED,   input_w/2, input_h/4, input_w/4, input_h/2, input_w);
 	}
 
-
-	/* ncurses init */
+	/* ncurses init *
 	initscr();
 	noecho();
 	cbreak();
-	keypad(stdscr, TRUE);
+	keypad(stdscr, TRUE);*/
 
 	do
 	{
@@ -595,10 +594,10 @@ int main (int argc, char * argv[])
 	} while (run);
 
 
-	/* ncurses close */
+	/* ncurses close *
 	clrtoeol();
 	refresh();
-	endwin();
+	endwin();*/
 
 	display_close(display);
 	shbeu_close(beu);

@@ -28,7 +28,13 @@
 #include "shbeu/shbeu.h"
 #include "shbeu_regs.h"
 
-//#define DEBUG 2
+#define DEBUG 2
+
+#ifdef DEBUG
+#define debug_info(s) fprintf(stderr, "%s: %s\n", __func__, s)
+#else
+#define debug_info(s)
+#endif
 
 struct uio_map {
 	unsigned long address;
@@ -121,6 +127,7 @@ static int is_rgb(int fmt)
 	return 0;
 }
 
+/* Setup input surface */
 static int
 setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 {
@@ -148,6 +155,12 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	if ((surface->width > 4092) || (surface->pitch > 4092) || (surface->height > 4092))
 		return -1;
 
+	/* BSMWR (pitch) is in bytes */
+	if (surface->format == V4L2_PIX_FMT_RGB565)
+		surface->pitch *= 2;
+	else if (surface->format == V4L2_PIX_FMT_RGB32)
+		surface->pitch *= 4;
+
 	tmp = (surface->height << 16) | surface->width;
 	write_reg(ump, tmp, BSSZR + offset);
 	write_reg(ump, surface->pitch, BSMWR + offset);
@@ -157,17 +170,17 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 
 	/* Surface format */
 	if ((surface->format == V4L2_PIX_FMT_NV12) && !surface->pa)
-		fmt_reg = (0x2 << 8);
+		fmt_reg = CHRR_YCBCR_420 | BSIFR1_IN1TE;
 	else if ((surface->format == V4L2_PIX_FMT_NV12) && surface->pa)
-		fmt_reg = (0x5 << 8);
+		fmt_reg = CHRR_aYCBCR_420 | BSIFR1_IN1TE;
 	else if ((surface->format == V4L2_PIX_FMT_NV16) && !surface->pa)
-		fmt_reg = (0x1 << 8);
+		fmt_reg = CHRR_YCBCR_422 | BSIFR1_IN1TE;
 	else if ((surface->format == V4L2_PIX_FMT_NV16) && surface->pa)
-		fmt_reg = (0x4 << 8);
+		fmt_reg = CHRR_aYCBCR_422 | BSIFR1_IN1TE;
 	else if (surface->format == V4L2_PIX_FMT_RGB565)
-		fmt_reg = 0x3;
+		fmt_reg = RPKF_RGB16;
 	else if (surface->format == V4L2_PIX_FMT_RGB32)
-		fmt_reg = 0x0;
+		fmt_reg = RPKF_RGB32;
 	else
 		return -1;
 	write_reg(ump, fmt_reg, BSIFR + offset);
@@ -194,57 +207,68 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	return 0;
 }
 
+/* Setup output surface */
+/* The dest size is defined by input surface 1. The output can be on a larger
+   canvas by setting the pitch */
 static int
-setup_dst_surface(struct uio_map *ump, beu_surface_t *surface)
+setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 {
 	unsigned long tmp;
 	unsigned long fmt_reg;
 
-	if (!surface)
+	if (!dest)
 		return 0;
 
 #ifdef DEBUG
 	fprintf(stderr, "\ndest: fmt=%d: width=%lu, height=%lu pitch=%lu\n",
-		surface->format, surface->width, surface->height, surface->pitch);
-	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX)\n", surface->py, surface->pc);
+		dest->format, dest->width, dest->height, dest->pitch);
+	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX)\n", dest->py, dest->pc);
 #endif
 
-	if (surface->pa || surface->x || surface->y)
+	if (dest->pa || dest->x || dest->y)
 		return -1;
 
-	if ((surface->width % 4) || (surface->pitch % 4) || (surface->height % 4))
+	if ((dest->width % 4) || (dest->pitch % 4) || (dest->height % 4))
 		return -1;
 
-	if ((surface->width > 4092) || (surface->pitch > 4092) || (surface->height > 4092))
+	if ((dest->width > 4092) || (dest->pitch > 4092) || (dest->height > 4092))
 		return -1;
 
-	// TODO The dest size is not needed? the pitch limits the overlay to the dest memory
-	// but what about the height?
-	write_reg(ump, surface->pitch, BDMWR);
-	write_reg(ump, surface->py, BDAYR);
-	write_reg(ump, surface->pc, BDACR);
+	/* BDMWR (pitch) is in bytes */
+	if (dest->format == V4L2_PIX_FMT_RGB565)
+		dest->pitch *= 2;
+	else if (dest->format == V4L2_PIX_FMT_RGB32)
+		dest->pitch *= 4;
+
+	write_reg(ump, dest->pitch, BDMWR);
+	write_reg(ump, dest->py, BDAYR);
+	write_reg(ump, dest->pc, BDACR);
 	write_reg(ump, 0, BAFXR);
 
 	/* Surface format */
-	if (surface->format == V4L2_PIX_FMT_NV12)
-		fmt_reg = (0x2 << 8);
-	else if (surface->format == V4L2_PIX_FMT_NV16)
-		fmt_reg = (0x1 << 8);
-	else if (surface->format == V4L2_PIX_FMT_RGB565)
-		fmt_reg = 0x6;
-	else if (surface->format == V4L2_PIX_FMT_RGB32)
-		fmt_reg = 0x13;
+	if (dest->format == V4L2_PIX_FMT_NV12)
+		fmt_reg = CHRR_YCBCR_420;
+	else if (dest->format == V4L2_PIX_FMT_NV16)
+		fmt_reg = CHRR_YCBCR_422;
+	else if (dest->format == V4L2_PIX_FMT_RGB565)
+		fmt_reg = WPCK_RGB16;
+	else if (dest->format == V4L2_PIX_FMT_RGB32)
+		fmt_reg = WPCK_RGB32;
 	else
 		return -1;
 	write_reg(ump, fmt_reg, BPKFR);
 
 	/* byte/word swapping */
 	tmp = read_reg(ump, BSWPR);
-	if (surface->format == V4L2_PIX_FMT_RGB565)
+	if (dest->format == V4L2_PIX_FMT_RGB565)
 		tmp |= 0x60;
 	else
 		tmp |= 0x70;
 	write_reg(ump, tmp, BSWPR);
+
+#ifdef DEBUG
+	fprintf(stderr, "\n");
+#endif
 
 	return 0;
 }
@@ -261,9 +285,7 @@ shbeu_start_blend(
 	unsigned long start_reg = BESTR_BEIVK;
 	unsigned long control_reg;
 
-#ifdef DEBUG
-	fprintf(stderr, "%s IN\n", __func__);
-#endif
+	debug_info("in");
 
 	/* Check we have been passed at least an input and an output */
 	if (!pvt || !src1 || !dest)
@@ -278,23 +300,35 @@ shbeu_start_blend(
 
 	uiomux_lock (pvt->uiomux, UIOMUX_SH_BEU);
 
-#ifdef DEBUG
-	if (read_reg(&pvt->uio_mmio, BSTAR))
-		fprintf(stderr, "%s BEU appears to be running already...\n", __func__);
-#endif
+	if (read_reg(ump, BSTAR)) {
+		debug_info("BEU appears to be running already...");
+	}
 
-	/* reset */
+	/* Reset */
 	write_reg(ump, 1, BBRSTR);
 
 	/* Wait for BEU to stop */
-	while (read_reg(&pvt->uio_mmio, BSTAR) & 1)
+	while (read_reg(ump, BSTAR) & 1)
 		;
 
+	/* Default location of surfaces is (0,0) */
+	write_reg(ump, 0, BLOCR1);
+
+	/* Default to no byte swapping for all surfaces (YCbCr) */
+	write_reg(ump, 0, BSWPR);
+
+	/* Turn off register bank/plane access, access regs via Plane A */
 	write_reg(ump, 0, BRCNTR);
 	write_reg(ump, 0, BRCHR);
-	write_reg(ump, 0, BLOCR1);
-	write_reg(ump, 0, BSWPR);
-	write_reg(ump, 0, BPKFR);
+
+	/* Turn off transparent color comparison */
+	write_reg(ump, 0, BPCCR0);
+
+	/* Not using "multi-window" capability */
+	write_reg(ump, 0, BMWCR0);
+
+	/* Set surface 1 as the parent; output to memory */
+	write_reg(ump, BBLCR1_OUTPUT_MEM, BBLCR1);
 
 	/* Set surface 1 to back, surface 2 to middle & surface 2 to front */
 	write_reg(ump, 0, BBLCR0);
@@ -308,21 +342,11 @@ shbeu_start_blend(
 	if (setup_dst_surface(ump, dest) < 0)
 		goto err;
 
-	/* Are the input colourspaces different? */
-	if (src2) {
-		if ((is_ycbcr(src1->format) && is_rgb(src2->format))
-			|| (is_rgb(src1->format) && is_ycbcr(src2->format)))
-		{
-			unsigned long bsifr = read_reg(ump, BSIFR);
-			bsifr |= BSIFR1_IN1TE;
-			write_reg(ump, bsifr, BSIFR);
-		}
-	}
-
 	/* Is the input colourspace RGB? */
 	if (is_rgb(src1->format))
 	{
 		unsigned long bpkfr = read_reg(ump, BPKFR);
+		debug_info("Setting BPKFR RY bit");
 		bpkfr |= BPKFR_RY;
 		write_reg(ump, bpkfr, BPKFR);
 	}
@@ -332,16 +356,10 @@ shbeu_start_blend(
 	    || (is_rgb(dest->format) && is_ycbcr(src1->format)))
 	{
 		unsigned long bpkfr = read_reg(ump, BPKFR);
+		debug_info("Setting BPKFR TE bit");
 		bpkfr |= BPKFR_TE;
 		write_reg(ump, bpkfr, BPKFR);
 	}
-
-	/* Set surface 1 as the parent; output to memory */
-	write_reg(ump, BBLCR1_OUTPUT_MEM, BBLCR1);
-
-	write_reg(ump, 0, BPROCR);
-	write_reg(ump, 0, BMWCR0);
-	write_reg(ump, 0, BPCCR0);
 
 	/* enable interrupt */
 	write_reg(ump, 1, BEIER);
@@ -352,10 +370,7 @@ shbeu_start_blend(
 	if (src3) start_reg |= BESTR_CHON3;
 	write_reg(ump, start_reg, BESTR);
 
-
-#ifdef DEBUG
-	fprintf(stderr, "%s OUT\n", __func__);
-#endif
+	debug_info("out");
 
 	return 0;
 
@@ -367,13 +382,12 @@ err:
 void
 shbeu_wait(SHBEU *pvt)
 {
-#ifdef DEBUG
-	fprintf(stderr, "%s IN\n", __func__);
-#endif
+	debug_info("in");
 
 	uiomux_sleep(pvt->uiomux, UIOMUX_SH_BEU);
 
-	write_reg(&pvt->uio_mmio, 0x100, BEVTR);   /* ack int, write 0 to bit 0 */
+	/* Acknowledge interrupt, write 0 to bit 0 */
+	write_reg(&pvt->uio_mmio, 0x100, BEVTR);
 
 	/* Wait for BEU to stop */
 	while (read_reg(&pvt->uio_mmio, BSTAR) & 1)
@@ -381,9 +395,7 @@ shbeu_wait(SHBEU *pvt)
 
 	uiomux_unlock(pvt->uiomux, UIOMUX_SH_BEU);
 
-#ifdef DEBUG
-	fprintf(stderr, "%s OUT\n", __func__);
-#endif
+	debug_info("out");
 }
 
 
