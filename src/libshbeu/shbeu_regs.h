@@ -64,7 +64,6 @@
 /* Other registers */
 #define BBLCR0 0x100	/* blend control 0 */
 #define BBLCR1 0x104	/* blend control 1 */
-#define BBLCR1_OUTPUT_MEM (1 << 16)
 
 #define BPROCR 0x108	/* process control */
 #define BMWCR0 0x10c	/* multiwindow control 0 */
@@ -124,6 +123,8 @@
 #define WPCK_RGB16       6
 #define WPCK_RGB32       0x13
 
-#define BSIFR1_IN1TE (1 << 12)
+#define BSIFR1_IN1TE 	(1 << 12)
+#define BSWPR_MODSEL	(1UL << 31)
+#define BBLCR1_OUTPUT_MEM (1 << 16)
 
 #endif /* __SHBEU_REGS_H__ */

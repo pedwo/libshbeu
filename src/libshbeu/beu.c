@@ -135,6 +135,7 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	int offset = offsets[index];
 	unsigned long tmp;
 	unsigned long fmt_reg;
+	unsigned long width, height, pitch;
 
 	if (!surface)
 		return 0;
@@ -155,15 +156,19 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	if ((surface->width > 4092) || (surface->pitch > 4092) || (surface->height > 4092))
 		return -1;
 
+	width = surface->width;
+	height = surface->height;
+	pitch = surface->pitch;
+
 	/* BSMWR (pitch) is in bytes */
 	if (surface->format == V4L2_PIX_FMT_RGB565)
-		surface->pitch *= 2;
+		pitch *= 2;
 	else if (surface->format == V4L2_PIX_FMT_RGB32)
-		surface->pitch *= 4;
+		pitch *= 4;
+	write_reg(ump, pitch, BSMWR + offset);
 
-	tmp = (surface->height << 16) | surface->width;
+	tmp = (height << 16) | width;
 	write_reg(ump, tmp, BSSZR + offset);
-	write_reg(ump, surface->pitch, BSMWR + offset);
 	write_reg(ump, surface->py, BSAYR + offset);
 	write_reg(ump, surface->pc, BSACR + offset);
 	write_reg(ump, surface->pa, BSAAR + offset);
@@ -191,8 +196,10 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 
 	/* byte/word swapping */
 	tmp = read_reg(ump, BSWPR);
-	tmp |= (1 << 31);
-	if (surface->format == V4L2_PIX_FMT_RGB565)
+	tmp |= BSWPR_MODSEL;
+	if (surface->format == V4L2_PIX_FMT_RGB32)
+		tmp |= ((0x4 << (index+1)*8));
+	else if (surface->format == V4L2_PIX_FMT_RGB565)
 		tmp |= ((0x6 << (index+1)*8));
 	else
 		tmp |= ((0x7 << (index+1)*8));
@@ -217,7 +224,7 @@ setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 	unsigned long fmt_reg;
 
 	if (!dest)
-		return 0;
+		return -1;
 
 #ifdef DEBUG
 	fprintf(stderr, "\ndest: fmt=%d: width=%lu, height=%lu pitch=%lu\n",
@@ -235,12 +242,13 @@ setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 		return -1;
 
 	/* BDMWR (pitch) is in bytes */
+	tmp = dest->pitch;
 	if (dest->format == V4L2_PIX_FMT_RGB565)
-		dest->pitch *= 2;
+		tmp *= 2;
 	else if (dest->format == V4L2_PIX_FMT_RGB32)
-		dest->pitch *= 4;
+		tmp *= 4;
+	write_reg(ump, tmp, BDMWR);
 
-	write_reg(ump, dest->pitch, BDMWR);
 	write_reg(ump, dest->py, BDAYR);
 	write_reg(ump, dest->pc, BDACR);
 	write_reg(ump, 0, BAFXR);
@@ -260,7 +268,9 @@ setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 
 	/* byte/word swapping */
 	tmp = read_reg(ump, BSWPR);
-	if (dest->format == V4L2_PIX_FMT_RGB565)
+	if (dest->format == V4L2_PIX_FMT_RGB32)
+		tmp |= 0x40;
+	else if (dest->format == V4L2_PIX_FMT_RGB565)
 		tmp |= 0x60;
 	else
 		tmp |= 0x70;

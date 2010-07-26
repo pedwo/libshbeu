@@ -527,7 +527,7 @@ int main (int argc, char * argv[])
 	src2.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, src2_virt);
 	src2.pc = src2.py + (input_w * input_h);
 	src2.pa = 0;
-	src2.alpha = 255;	/* Semi-transparent */
+	src2.alpha = 200;	/* Semi-transparent */
 	src2.width = input_w;
 	src2.height = input_h;
 	src2.pitch = input_w;
