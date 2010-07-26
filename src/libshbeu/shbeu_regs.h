@@ -83,8 +83,6 @@
 
 
 #define BPKFR   0x140	/* Blend pack form */
-#define BPKFR_RY (1 << 11)
-#define BPKFR_TE (1 << 10)
 
 #define BPCCR0  0x144	/* transparent control */
 #define BPCCR11 0x148	/* transparent control */
@@ -120,9 +118,14 @@
 #define RPKF_RGB16       3
 
 /* BPKFR */
+#define BPKFR_TM2		(1 << 21)
+#define BPKFR_TM		(1 << 20)
+#define BPKFR_RY 		(1 << 11)
+#define BPKFR_TE 		(1 << 10)
 #define WPCK_RGB16       6
 #define WPCK_RGB32       0x13
 
+#define BSIFR1_IN1TM	(1 << 13)
 #define BSIFR1_IN1TE 	(1 << 12)
 #define BSWPR_MODSEL	(1UL << 31)
 #define BBLCR1_OUTPUT_MEM (1 << 16)

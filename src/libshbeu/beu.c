@@ -156,6 +156,7 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	if ((surface->width > 4092) || (surface->pitch > 4092) || (surface->height > 4092))
 		return -1;
 
+ 
 	width = surface->width;
 	height = surface->height;
 	pitch = surface->pitch;
@@ -167,21 +168,20 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 		pitch *= 4;
 	write_reg(ump, pitch, BSMWR + offset);
 
-	tmp = (height << 16) | width;
-	write_reg(ump, tmp, BSSZR + offset);
+	write_reg(ump, (height << 16) | width, BSSZR + offset);
 	write_reg(ump, surface->py, BSAYR + offset);
 	write_reg(ump, surface->pc, BSACR + offset);
 	write_reg(ump, surface->pa, BSAAR + offset);
 
 	/* Surface format */
 	if ((surface->format == V4L2_PIX_FMT_NV12) && !surface->pa)
-		fmt_reg = CHRR_YCBCR_420 | BSIFR1_IN1TE;
+		fmt_reg = CHRR_YCBCR_420;
 	else if ((surface->format == V4L2_PIX_FMT_NV12) && surface->pa)
-		fmt_reg = CHRR_aYCBCR_420 | BSIFR1_IN1TE;
+		fmt_reg = CHRR_aYCBCR_420;
 	else if ((surface->format == V4L2_PIX_FMT_NV16) && !surface->pa)
-		fmt_reg = CHRR_YCBCR_422 | BSIFR1_IN1TE;
+		fmt_reg = CHRR_YCBCR_422;
 	else if ((surface->format == V4L2_PIX_FMT_NV16) && surface->pa)
-		fmt_reg = CHRR_aYCBCR_422 | BSIFR1_IN1TE;
+		fmt_reg = CHRR_aYCBCR_422;
 	else if (surface->format == V4L2_PIX_FMT_RGB565)
 		fmt_reg = RPKF_RGB16;
 	else if (surface->format == V4L2_PIX_FMT_RGB32)
@@ -294,6 +294,8 @@ shbeu_start_blend(
 	struct uio_map *ump = &pvt->uio_mmio;
 	unsigned long start_reg = BESTR_BEIVK;
 	unsigned long control_reg;
+	beu_surface_t *src_te_check = src1;
+	int convert_src1 = 0;
 
 	debug_info("in");
 
@@ -334,6 +336,9 @@ shbeu_start_blend(
 	/* Turn off transparent color comparison */
 	write_reg(ump, 0, BPCCR0);
 
+	/* Turn on blending */
+	write_reg(ump, 0, BPROCR);
+
 	/* Not using "multi-window" capability */
 	write_reg(ump, 0, BMWCR0);
 
@@ -352,8 +357,22 @@ shbeu_start_blend(
 	if (setup_dst_surface(ump, dest) < 0)
 		goto err;
 
-	/* Is the input colourspace RGB? */
-	if (is_rgb(src1->format))
+	if (src2) {
+		if (is_rgb(src1->format) && is_ycbcr(src2->format))
+		{
+			unsigned long bsifr = read_reg(ump, BSIFR);
+			debug_info("Setting BSIFR1 IN1TE bit");
+			bsifr  |= (BSIFR1_IN1TE | BSIFR1_IN1TM);
+			write_reg(ump, bsifr, BSIFR + SRC1_BASE);
+
+			convert_src1 = 1;
+		}
+
+		src_te_check = src2;
+	}
+
+	/* Is the input colourspace (after the colorspace convertor) RGB? */
+	if (is_rgb(src1->format) && !convert_src1)
 	{
 		unsigned long bpkfr = read_reg(ump, BPKFR);
 		debug_info("Setting BPKFR RY bit");
@@ -361,13 +380,13 @@ shbeu_start_blend(
 		write_reg(ump, bpkfr, BPKFR);
 	}
 
-	/* Is the output colourspace different to input 1? */
-	if ((is_ycbcr(dest->format) && is_rgb(src1->format))
-	    || (is_rgb(dest->format) && is_ycbcr(src1->format)))
+	/* Is the output colourspace different to input? */
+	if ((is_ycbcr(dest->format) && is_rgb(src_te_check->format))
+		|| (is_rgb(dest->format) && is_ycbcr(src_te_check->format)))
 	{
 		unsigned long bpkfr = read_reg(ump, BPKFR);
 		debug_info("Setting BPKFR TE bit");
-		bpkfr |= BPKFR_TE;
+		bpkfr |= (BPKFR_TM2 | BPKFR_TM | BPKFR_TE);
 		write_reg(ump, bpkfr, BPKFR);
 	}
 
