@@ -127,6 +127,14 @@ static int is_rgb(int fmt)
 	return 0;
 }
 
+static int different_colorspace(int fmt1, int fmt2)
+{
+	if ((is_rgb(fmt1) && is_ycbcr(fmt2))
+	   || (is_ycbcr(fmt1) && is_rgb(fmt2)))
+		return 1;
+	return 0;
+}
+
 /* Setup input surface */
 static int
 setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
@@ -351,9 +359,7 @@ shbeu_start_blend(
 		goto err;
 
 	if (src2) {
-		if ((is_rgb(src1->format) && is_ycbcr(src2->format))
-		   || (is_ycbcr(src1->format) && is_rgb(src2->format)))
-		{
+		if (different_colorspace(src1->format, src2->format)) {
 			unsigned long bsifr = read_reg(ump, BSIFR);
 			debug_info("Setting BSIFR1 IN1TE bit");
 			bsifr  |= (BSIFR1_IN1TE | BSIFR1_IN1TM);
@@ -363,9 +369,8 @@ shbeu_start_blend(
 		src_check = src2;
 	}
 
-	/* Is the input colourspace (after the colorspace convertor) RGB? */
-	if (is_rgb(src_check->format))
-	{
+	/* Is input 1 colourspace (after the colorspace convertor) RGB? */
+	if (is_rgb(src_check->format)) {
 		unsigned long bpkfr = read_reg(ump, BPKFR);
 		debug_info("Setting BPKFR RY bit");
 		bpkfr |= BPKFR_RY;
@@ -373,9 +378,7 @@ shbeu_start_blend(
 	}
 
 	/* Is the output colourspace different to input? */
-	if ((is_ycbcr(dest->format) && is_rgb(src_check->format))
-		|| (is_rgb(dest->format) && is_ycbcr(src_check->format)))
-	{
+	if (different_colorspace(dest->format, src_check->format)) {
 		unsigned long bpkfr = read_reg(ump, BPKFR);
 		debug_info("Setting BPKFR TE bit");
 		bpkfr |= (BPKFR_TM2 | BPKFR_TM | BPKFR_DITH1 | BPKFR_TE);
