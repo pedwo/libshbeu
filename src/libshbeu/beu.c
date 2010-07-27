@@ -188,6 +188,7 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 		fmt_reg = RPKF_RGB32;
 	else
 		return -1;
+
 	write_reg(ump, fmt_reg, BSIFR + offset);
 
 	/* Position of overlay */
@@ -198,11 +199,11 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	tmp = read_reg(ump, BSWPR);
 	tmp |= BSWPR_MODSEL;
 	if (surface->format == V4L2_PIX_FMT_RGB32)
-		tmp |= ((0x4 << (index+1)*8));
+		tmp |= ((0x4 << index*8));
 	else if (surface->format == V4L2_PIX_FMT_RGB565)
-		tmp |= ((0x6 << (index+1)*8));
+		tmp |= ((0x6 << index*8));
 	else
-		tmp |= ((0x7 << (index+1)*8));
+		tmp |= ((0x7 << index*8));
 	write_reg(ump, tmp, BSWPR);
 
 	/* Set alpha value for entire plane, if no alpha data */
@@ -292,10 +293,9 @@ shbeu_start_blend(
 	beu_surface_t *dest)
 {
 	struct uio_map *ump = &pvt->uio_mmio;
-	unsigned long start_reg = BESTR_BEIVK;
+	unsigned long start_reg;
 	unsigned long control_reg;
-	beu_surface_t *src_te_check = src1;
-	int convert_src1 = 0;
+	beu_surface_t *src_check = src1;
 
 	debug_info("in");
 
@@ -323,15 +323,15 @@ shbeu_start_blend(
 	while (read_reg(ump, BSTAR) & 1)
 		;
 
+	/* Turn off register bank/plane access, access regs via Plane A */
+	write_reg(ump, 0, BRCNTR);
+	write_reg(ump, 0, BRCHR);
+
 	/* Default location of surfaces is (0,0) */
 	write_reg(ump, 0, BLOCR1);
 
 	/* Default to no byte swapping for all surfaces (YCbCr) */
 	write_reg(ump, 0, BSWPR);
-
-	/* Turn off register bank/plane access, access regs via Plane A */
-	write_reg(ump, 0, BRCNTR);
-	write_reg(ump, 0, BRCHR);
 
 	/* Turn off transparent color comparison */
 	write_reg(ump, 0, BPCCR0);
@@ -364,15 +364,13 @@ shbeu_start_blend(
 			debug_info("Setting BSIFR1 IN1TE bit");
 			bsifr  |= (BSIFR1_IN1TE | BSIFR1_IN1TM);
 			write_reg(ump, bsifr, BSIFR + SRC1_BASE);
-
-			convert_src1 = 1;
 		}
 
-		src_te_check = src2;
+		src_check = src2;
 	}
 
 	/* Is the input colourspace (after the colorspace convertor) RGB? */
-	if (is_rgb(src1->format) && !convert_src1)
+	if (is_rgb(src_check->format))
 	{
 		unsigned long bpkfr = read_reg(ump, BPKFR);
 		debug_info("Setting BPKFR RY bit");
@@ -381,8 +379,8 @@ shbeu_start_blend(
 	}
 
 	/* Is the output colourspace different to input? */
-	if ((is_ycbcr(dest->format) && is_rgb(src_te_check->format))
-		|| (is_rgb(dest->format) && is_ycbcr(src_te_check->format)))
+	if ((is_ycbcr(dest->format) && is_rgb(src_check->format))
+		|| (is_rgb(dest->format) && is_ycbcr(src_check->format)))
 	{
 		unsigned long bpkfr = read_reg(ump, BPKFR);
 		debug_info("Setting BPKFR TE bit");
@@ -394,6 +392,7 @@ shbeu_start_blend(
 	write_reg(ump, 1, BEIER);
 
 	/* start operation */
+	start_reg = BESTR_BEIVK;
 	if (src1) start_reg |= BESTR_CHON1;
 	if (src2) start_reg |= BESTR_CHON2;
 	if (src3) start_reg |= BESTR_CHON3;
