@@ -358,7 +358,8 @@ shbeu_start_blend(
 		goto err;
 
 	if (src2) {
-		if (is_rgb(src1->format) && is_ycbcr(src2->format))
+		if ((is_rgb(src1->format) && is_ycbcr(src2->format))
+		   || (is_ycbcr(src1->format) && is_rgb(src2->format)))
 		{
 			unsigned long bsifr = read_reg(ump, BSIFR);
 			debug_info("Setting BSIFR1 IN1TE bit");
