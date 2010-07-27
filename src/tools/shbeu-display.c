@@ -31,6 +31,17 @@
 #define BLUE  0x001F
 
 
+typedef struct {
+	char * filename;
+	FILE * file;
+	size_t nread;
+	size_t size;
+	unsigned char *virt;
+	beu_surface_t surface;
+} surface_t;
+
+
+
 static void
 usage (const char * progname)
 {
@@ -301,11 +312,23 @@ static void draw_rect_rgb565(void *surface, uint16_t color, int x, int y, int w,
 	}
 }
 
+static void draw_simple_pic(surface_t *s)
+{
+	int w = (int)s->surface.width;
+	int h = (int)s->surface.height;
+
+	if (s->surface.format == V4L2_PIX_FMT_RGB565) {
+		draw_rect_rgb565(s->virt, BLACK,   0,   0,   w,   h, w);
+		draw_rect_rgb565(s->virt, BLUE,  w/4, h/4, w/4, h/2, w);
+		draw_rect_rgb565(s->virt, RED,   w/2, h/4, w/4, h/2, w);
+	}
+}
+
 static void blend(
 	SHBEU *beu,
 	DISPLAY *display,
-	beu_surface_t *src1,
-	beu_surface_t *src2)
+	surface_t *parent,
+	surface_t *overlay)
 {
 	unsigned char *bb_virt = display_get_back_buff_virt(display);
 	unsigned long  bb_phys = display_get_back_buff_phys(display);
@@ -321,7 +344,7 @@ static void blend(
 	dst.pitch = lcd_w;
 	dst.format = V4L2_PIX_FMT_RGB565;
 
-	shbeu_blend(beu, src1, src2, NULL, &dst);
+	shbeu_blend(beu, &parent->surface, &overlay->surface, NULL, &dst);
 
 	display_flip(display);
 }
@@ -332,18 +355,8 @@ int main (int argc, char * argv[])
 	UIOMux *uiomux = NULL;
 	SHBEU *beu = NULL;
 	DISPLAY *display = NULL;
-	char * infilename = NULL;
-	FILE * infile = NULL;
-	size_t nread;
-	size_t input_size;
-	int input_w = -1;
-	int input_h = -1;
-	int input_colorspace = -1;
-	int w, h;
-	unsigned char *src1_virt;
-	unsigned char *src2_virt;
-	beu_surface_t src1;
-	beu_surface_t src2;
+	surface_t *current;
+	surface_t *parent;
 	int ret;
 	int read_image = 1;
 	int key;
@@ -366,6 +379,12 @@ int main (int argc, char * argv[])
 		{NULL,0,0,0}
 	};
 #endif
+
+	parent = calloc(1, sizeof(surface_t));
+	current = calloc(1, sizeof(surface_t));
+	current->surface.width = -1;
+	current->surface.height = -1;
+	current->surface.format = -1;
 
 	progname = argv[0];
 
@@ -398,10 +417,10 @@ int main (int argc, char * argv[])
 			show_version = 1;
 			break;
 		case 'c': /* input colorspace */
-			set_colorspace (optarg, &input_colorspace);
+			set_colorspace (optarg, &current->surface.format);
 			break;
 		case 's': /* input size */
-			set_size (optarg, &input_w, &input_h);
+			set_size (optarg, &current->surface.width, &current->surface.height);
 			break;
 		default:
 			break;
@@ -426,46 +445,47 @@ int main (int argc, char * argv[])
 	}
 
 	if (optind < argc) {
-		infilename = argv[optind++];
-		printf ("Input file: %s\n", infilename);
+		current->filename = argv[optind++];
+		printf ("Input file: %s\n", current->filename);
 
-		guess_colorspace (infilename, &input_colorspace);
-		guess_size (infilename, input_colorspace, &input_w, &input_h);
+		guess_colorspace (current->filename, &current->surface.format);
+		guess_size (current->filename, current->surface.format, &current->surface.width, &current->surface.height);
 	} else {
 		printf ("No input file specified, drawing simple image\n");
-		if (input_w == -1) {
-			input_w = 320;
-			input_h = 240;
+		if (current->surface.width == -1) {
+			current->surface.width = 320;
+			current->surface.height = 240;
 		}
-		input_colorspace = V4L2_PIX_FMT_RGB565;
+		current->surface.format = V4L2_PIX_FMT_RGB565;
 	}
 
 	/* Check that all parameters are set */
-	if (input_colorspace == -1) {
+	if (current->surface.format == -1) {
 		fprintf (stderr, "ERROR: Input colorspace unspecified\n");
 		error = 1;
 	}
-	if (input_w == -1) {
+	if (current->surface.width == -1) {
 		fprintf (stderr, "ERROR: Input width unspecified\n");
 		error = 1;
 	}
-	if (input_h == -1) {
+	if (current->surface.height == -1) {
 		fprintf (stderr, "ERROR: Input height unspecified\n");
 		error = 1;
 	}
 
 	if (error) goto exit_err;
 
-	printf ("Input colorspace:\t%s\n", show_colorspace (input_colorspace));
-	printf ("Input size:\t\t%dx%d %s\n", input_w, input_h, show_size (input_w, input_h));
+	printf ("Input colorspace:\t%s\n", show_colorspace (current->surface.format));
+	printf ("Input size:\t\t%dx%d %s\n", current->surface.width, current->surface.height,
+		show_size (current->surface.width, current->surface.height));
 
-	input_size = imgsize (input_colorspace, input_w, input_h);
+	current->size = imgsize (current->surface.format, current->surface.width, current->surface.height);
 
-	if (infilename != NULL) {
-		infile = fopen (infilename, "rb");
-		if (infile == NULL) {
+	if (current->filename != NULL) {
+		current->file = fopen (current->filename, "rb");
+		if (current->file == NULL) {
 			fprintf (stderr, "%s: unable to open input file %s\n",
-				 progname, infilename);
+				 progname, current->filename);
 			goto exit_err;
 		}
 	}
@@ -487,52 +507,41 @@ int main (int argc, char * argv[])
 
 
 	/* Surface 1: static RGB image - same size as display */
-	w = display_get_width(display);
-	h = display_get_height(display);
-	src1_virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, 2*w*h, 32);
-	if (!src1_virt) {
+	parent->surface.width = display_get_width(display);
+	parent->surface.height = display_get_height(display);
+	parent->surface.pitch = parent->surface.width;
+	parent->size = 2 * parent->surface.width * parent->surface.height;
+	parent->virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, parent->size, 32);
+	if (!parent->virt) {
 		perror("uiomux_malloc");
 		goto exit_err;
 	}
-	src1.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, src1_virt);
-	src1.pc = 0;
-	src1.pa = 0;
-	src1.alpha = 255;	/* Opaque */
-	src1.width = w;
-	src1.height = h;
-	src1.pitch = w;
-	src1.x = 0;
-	src1.y = 0;
-	src1.format = V4L2_PIX_FMT_RGB565;
-
-	/* Draw a simple picture */
-	draw_rect_rgb565(src1_virt, BLACK,   0,   0,   w,   h, w);
-	draw_rect_rgb565(src1_virt, BLUE,  w/4, h/4, w/4, h/2, w);
-	draw_rect_rgb565(src1_virt, RED,   w/2, h/4, w/4, h/2, w);
+	parent->surface.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, parent->virt);
+	parent->surface.pc = 0;
+	parent->surface.pa = 0;
+	parent->surface.alpha = 255;	/* Opaque */
+	parent->surface.x = 0;
+	parent->surface.y = 0;
+	parent->surface.format = V4L2_PIX_FMT_RGB565;
+	draw_simple_pic(parent);
 
 
 	/* Surface 2: File input or static RGB image */
-	src2_virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, input_size, 32);
-	if (!src2_virt) {
+	current->virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, current->size, 32);
+	if (!current->virt) {
 		perror("uiomux_malloc");
 		goto exit_err;
 	}
-	src2.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, src2_virt);
-	src2.pc = src2.py + (input_w * input_h);
-	src2.pa = 0;
-	src2.alpha = 200;	/* Semi-transparent */
-	src2.width = input_w;
-	src2.height = input_h;
-	src2.pitch = input_w;
-	src2.x = 0;
-	src2.y = 0;
-	src2.format = input_colorspace;
+	current->surface.pitch = current->surface.width;
+	current->surface.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, current->virt);
+	current->surface.pc = current->surface.py + (current->surface.width * current->surface.height);
+	current->surface.pa = 0;
+	current->surface.alpha = 200;	/* Semi-transparent */
+	current->surface.x = 0;
+	current->surface.y = 0;
 
-	if (!infilename) {
-		/* Draw a simple picture */
-		draw_rect_rgb565(src2_virt, BLACK, 0,         0,         input_w,   input_h,   input_w);
-		draw_rect_rgb565(src2_virt, BLUE,  input_w/4, input_h/4, input_w/4, input_h/2, input_w);
-		draw_rect_rgb565(src2_virt, RED,   input_w/2, input_h/4, input_w/4, input_h/2, input_w);
+	if (!current->filename) {
+		draw_simple_pic(current);
 	}
 
 	/* ncurses init *
@@ -543,39 +552,39 @@ int main (int argc, char * argv[])
 
 	do
 	{
-		if (infilename && read_image) {
+		if (current->filename && read_image) {
 			read_image = 0;
 			/* Read input */
-			if ((nread = fread (src2_virt, 1, input_size, infile)) != input_size) {
-				if (nread == 0 && feof (infile)) {
+			if ((current->nread = fread (current->virt, 1, current->size, current->file)) != current->size) {
+				if (current->nread == 0 && feof (current->file)) {
 					break;
 				} else {
 					fprintf (stderr, "%s: error reading input file %s\n",
-						 progname, infilename);
+						 progname, current->filename);
 				}
 			}
 		}
 
-		blend (beu, display, &src1, &src2);
+		blend (beu, display, parent, current);
 
 		key = getch();
 		switch (key)
 		{
 		case '=':
-			src2.x = 0;
-			src2.y = 0;
+			current->surface.x = 0;
+			current->surface.y = 0;
 			break;
 		case KEY_UP:
-			src2.y -= 2;
+			current->surface.y -= 2;
 			break;
 		case KEY_DOWN:
-			src2.y += 2;
+			current->surface.y += 2;
 			break;
 		case KEY_LEFT:
-			src2.x -= 2;
+			current->surface.x -= 2;
 			break;
 		case KEY_RIGHT:
-			src2.x += 2;
+			current->surface.x += 2;
 			break;
 		case ' ':
 			read_image = 1;
@@ -594,8 +603,8 @@ int main (int argc, char * argv[])
 
 	display_close(display);
 	shbeu_close(beu);
-	uiomux_free (uiomux, UIOMUX_SH_BEU, src1_virt, 2*w*h);
-	uiomux_free (uiomux, UIOMUX_SH_BEU, src2_virt, input_size);
+	uiomux_free (uiomux, UIOMUX_SH_BEU, parent->virt, parent->size);
+	uiomux_free (uiomux, UIOMUX_SH_BEU, current->virt, current->size);
 	uiomux_close (uiomux);
 
 
