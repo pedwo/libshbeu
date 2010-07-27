@@ -318,14 +318,7 @@ static void blend(
 
 	/* Destination surface info */
 	dst.py = bb_phys;
-	dst.pc = 0;
-	dst.pa = 0;
-	dst.alpha = 255;
-	dst.width = lcd_w;
-	dst.height = lcd_h;
 	dst.pitch = lcd_w;
-	dst.x = 0;
-	dst.y = 0;
 	dst.format = V4L2_PIX_FMT_RGB565;
 
 	shbeu_blend(beu, src1, src2, NULL, &dst);

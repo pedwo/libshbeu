@@ -120,6 +120,8 @@
 /* BPKFR */
 #define BPKFR_TM2		(1 << 21)
 #define BPKFR_TM		(1 << 20)
+#define BPKFR_DITH2		(1 << 16)
+#define BPKFR_DITH1		(1 << 12)
 #define BPKFR_RY 		(1 << 11)
 #define BPKFR_TE 		(1 << 10)
 #define WPCK_RGB16       6

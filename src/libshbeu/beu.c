@@ -228,18 +228,11 @@ setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 		return -1;
 
 #ifdef DEBUG
-	fprintf(stderr, "\ndest: fmt=%d: width=%lu, height=%lu pitch=%lu\n",
-		dest->format, dest->width, dest->height, dest->pitch);
+	fprintf(stderr, "\ndest: fmt=%d: pitch=%lu\n", dest->format, dest->pitch);
 	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX)\n", dest->py, dest->pc);
 #endif
 
-	if (dest->pa || dest->x || dest->y)
-		return -1;
-
-	if ((dest->width % 4) || (dest->pitch % 4) || (dest->height % 4))
-		return -1;
-
-	if ((dest->width > 4092) || (dest->pitch > 4092) || (dest->height > 4092))
+	if ((dest->pitch % 4) || (dest->pitch > 4092))
 		return -1;
 
 	/* BDMWR (pitch) is in bytes */
@@ -385,7 +378,7 @@ shbeu_start_blend(
 	{
 		unsigned long bpkfr = read_reg(ump, BPKFR);
 		debug_info("Setting BPKFR TE bit");
-		bpkfr |= (BPKFR_TM2 | BPKFR_TM | BPKFR_TE);
+		bpkfr |= (BPKFR_TM2 | BPKFR_TM | BPKFR_DITH1 | BPKFR_TE);
 		write_reg(ump, bpkfr, BPKFR);
 	}
 
