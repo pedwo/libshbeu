@@ -41,14 +41,14 @@ typedef struct {
 } surface_t;
 
 
-
 static void
 usage (const char * progname)
 {
-	printf ("Usage: %s [options] [input-filename]\n", progname);
+	printf ("Usage: %s [options] -i <input file> \n", progname);
 	printf ("Overlays raw image data using the SH-Mobile BEU and displays on screen.\n");
+	printf ("Options and input file can be specified for up to 3 inputs, e.g.\n");
+	printf ("  %s -s vga -i vga.yuv -s qvga -i qvga.rgb -s qcif -i qcif.rgb\n", progname);
 	printf ("\n");
-	printf ("If no input filename is specified, a simple image will be created.\n");
 	printf ("\nInput options\n");
 	printf ("  -c, --input-colorspace (RGB565, NV12, YCbCr420, YCbCr422)\n");
 	printf ("                         Specify input colorspace\n");
@@ -312,23 +312,12 @@ static void draw_rect_rgb565(void *surface, uint16_t color, int x, int y, int w,
 	}
 }
 
-static void draw_simple_pic(surface_t *s)
-{
-	int w = (int)s->surface.width;
-	int h = (int)s->surface.height;
-
-	if (s->surface.format == V4L2_PIX_FMT_RGB565) {
-		draw_rect_rgb565(s->virt, BLACK,   0,   0,   w,   h, w);
-		draw_rect_rgb565(s->virt, BLUE,  w/4, h/4, w/4, h/2, w);
-		draw_rect_rgb565(s->virt, RED,   w/2, h/4, w/4, h/2, w);
-	}
-}
-
 static void blend(
 	SHBEU *beu,
 	DISPLAY *display,
-	surface_t *parent,
-	surface_t *overlay)
+	beu_surface_t *parent,
+	beu_surface_t *overlay1,
+	beu_surface_t *overlay2)
 {
 	unsigned char *bb_virt = display_get_back_buff_virt(display);
 	unsigned long  bb_phys = display_get_back_buff_phys(display);
@@ -344,7 +333,7 @@ static void blend(
 	dst.pitch = lcd_w;
 	dst.format = V4L2_PIX_FMT_RGB565;
 
-	shbeu_blend(beu, &parent->surface, &overlay->surface, NULL, &dst);
+	shbeu_blend(beu, parent, overlay1, overlay2, &dst);
 
 	display_flip(display);
 }
@@ -355,8 +344,9 @@ int main (int argc, char * argv[])
 	UIOMux *uiomux = NULL;
 	SHBEU *beu = NULL;
 	DISPLAY *display = NULL;
+	surface_t in[3];
 	surface_t *current;
-	surface_t *parent;
+	int i, nr_inputs = 0;
 	int ret;
 	int read_image = 1;
 	int key;
@@ -368,7 +358,7 @@ int main (int argc, char * argv[])
 	int error = 0;
 
 	int c;
-	char * optstring = "hvc:s:";
+	char * optstring = "hvc:s:i:";
 
 #ifdef HAVE_GETOPT_LONG
 	static struct option long_options[] = {
@@ -376,15 +366,19 @@ int main (int argc, char * argv[])
 		{"version", no_argument, 0, 'v'},
 		{"input-colorspace", required_argument, 0, 'c'},
 		{"input-size", required_argument, 0, 's'},
+		{"input-file", required_argument, 0, 'i'},
 		{NULL,0,0,0}
 	};
 #endif
 
-	parent = calloc(1, sizeof(surface_t));
-	current = calloc(1, sizeof(surface_t));
-	current->surface.width = -1;
-	current->surface.height = -1;
-	current->surface.format = -1;
+	memset(&in, 0, sizeof(in));
+	for (i=0; i<3; i++) {
+		current = &in[i];
+		current->surface.width = -1;
+		current->surface.height = -1;
+		current->surface.format = -1;
+	}
+	current = &in[nr_inputs];
 
 	progname = argv[0];
 
@@ -422,6 +416,11 @@ int main (int argc, char * argv[])
 		case 's': /* input size */
 			set_size (optarg, &current->surface.width, &current->surface.height);
 			break;
+		case 'i': /* input file */
+			current->filename = optarg;
+			/* Setup next input file */
+			current = &in[++nr_inputs];
+			break;
 		default:
 			break;
 		}
@@ -444,52 +443,6 @@ int main (int argc, char * argv[])
 		goto exit_err;
 	}
 
-	if (optind < argc) {
-		current->filename = argv[optind++];
-		printf ("Input file: %s\n", current->filename);
-
-		guess_colorspace (current->filename, &current->surface.format);
-		guess_size (current->filename, current->surface.format, &current->surface.width, &current->surface.height);
-	} else {
-		printf ("No input file specified, drawing simple image\n");
-		if (current->surface.width == -1) {
-			current->surface.width = 320;
-			current->surface.height = 240;
-		}
-		current->surface.format = V4L2_PIX_FMT_RGB565;
-	}
-
-	/* Check that all parameters are set */
-	if (current->surface.format == -1) {
-		fprintf (stderr, "ERROR: Input colorspace unspecified\n");
-		error = 1;
-	}
-	if (current->surface.width == -1) {
-		fprintf (stderr, "ERROR: Input width unspecified\n");
-		error = 1;
-	}
-	if (current->surface.height == -1) {
-		fprintf (stderr, "ERROR: Input height unspecified\n");
-		error = 1;
-	}
-
-	if (error) goto exit_err;
-
-	printf ("Input colorspace:\t%s\n", show_colorspace (current->surface.format));
-	printf ("Input size:\t\t%dx%d %s\n", current->surface.width, current->surface.height,
-		show_size (current->surface.width, current->surface.height));
-
-	current->size = imgsize (current->surface.format, current->surface.width, current->surface.height);
-
-	if (current->filename != NULL) {
-		current->file = fopen (current->filename, "rb");
-		if (current->file == NULL) {
-			fprintf (stderr, "%s: unable to open input file %s\n",
-				 progname, current->filename);
-			goto exit_err;
-		}
-	}
-
 	if ((uiomux = uiomux_open()) == 0) {
 		fprintf (stderr, "Error opening UIOmux\n");
 		goto exit_err;
@@ -505,44 +458,61 @@ int main (int argc, char * argv[])
 		goto exit_err;
 	}
 
+	for (i=0; i<nr_inputs; i++) {
+		current = &in[i];
 
-	/* Surface 1: static RGB image - same size as display */
-	parent->surface.width = display_get_width(display);
-	parent->surface.height = display_get_height(display);
-	parent->surface.pitch = parent->surface.width;
-	parent->size = 2 * parent->surface.width * parent->surface.height;
-	parent->virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, parent->size, 32);
-	if (!parent->virt) {
-		perror("uiomux_malloc");
-		goto exit_err;
+		if (current->filename == NULL) {
+			fprintf (stderr, "ERROR: Input file unspecified\n");
+			goto exit_err;
+		}
+
+		printf ("[%d] Input file:      \t%s\n", i, current->filename);
+
+		guess_colorspace (current->filename, &current->surface.format);
+		guess_size (current->filename, current->surface.format, &current->surface.width, &current->surface.height);
+
+		/* Check that all parameters are set */
+		if (current->surface.format == -1) {
+			fprintf (stderr, "ERROR: Input colorspace unspecified\n");
+			error = 1;
+		}
+		if (current->surface.width == -1) {
+			fprintf (stderr, "ERROR: Input width unspecified\n");
+			error = 1;
+		}
+		if (current->surface.height == -1) {
+			fprintf (stderr, "ERROR: Input height unspecified\n");
+			error = 1;
+		}
+
+		if (error) goto exit_err;
+
+		printf ("[%d] Input colorspace:\t%s\n", i, show_colorspace (current->surface.format));
+		printf ("[%d] Input size:      \t%dx%d %s\n", i, current->surface.width, current->surface.height,
+			show_size (current->surface.width, current->surface.height));
+
+		current->file = fopen (current->filename, "rb");
+		if (current->file == NULL) {
+			fprintf (stderr, "%s: unable to open input file %s\n",
+				 progname, current->filename);
+			goto exit_err;
+		}
+
+		current->size = imgsize (current->surface.format, current->surface.width, current->surface.height);
+		current->virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, current->size, 32);
+		if (!current->virt) {
+			perror("uiomux_malloc");
+			goto exit_err;
+		}
+		current->surface.pitch = current->surface.width;
+		current->surface.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, current->virt);
+		current->surface.pc = current->surface.py + (current->surface.width * current->surface.height);
+		current->surface.pa = 0;
+		current->surface.alpha = 255 - i*70;	/* 1st layer opaque, others semi-transparent */
+		current->surface.x = 0;
+		current->surface.y = 0;
 	}
-	parent->surface.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, parent->virt);
-	parent->surface.pc = 0;
-	parent->surface.pa = 0;
-	parent->surface.alpha = 255;	/* Opaque */
-	parent->surface.x = 0;
-	parent->surface.y = 0;
-	parent->surface.format = V4L2_PIX_FMT_RGB565;
-	draw_simple_pic(parent);
 
-
-	/* Surface 2: File input or static RGB image */
-	current->virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, current->size, 32);
-	if (!current->virt) {
-		perror("uiomux_malloc");
-		goto exit_err;
-	}
-	current->surface.pitch = current->surface.width;
-	current->surface.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, current->virt);
-	current->surface.pc = current->surface.py + (current->surface.width * current->surface.height);
-	current->surface.pa = 0;
-	current->surface.alpha = 200;	/* Semi-transparent */
-	current->surface.x = 0;
-	current->surface.y = 0;
-
-	if (!current->filename) {
-		draw_simple_pic(current);
-	}
 
 	/* ncurses init *
 	initscr();
@@ -552,20 +522,30 @@ int main (int argc, char * argv[])
 
 	do
 	{
-		if (current->filename && read_image) {
-			read_image = 0;
-			/* Read input */
-			if ((current->nread = fread (current->virt, 1, current->size, current->file)) != current->size) {
-				if (current->nread == 0 && feof (current->file)) {
-					break;
-				} else {
-					fprintf (stderr, "%s: error reading input file %s\n",
-						 progname, current->filename);
+		if (read_image) {
+			for (i=0; i<nr_inputs; i++) {
+				current = &in[i];
+				if (current->filename) {
+					/* Read input */
+					if ((current->nread = fread (current->virt, 1, current->size, current->file)) != current->size) {
+						if (current->nread == 0 && feof (current->file)) {
+							break;
+						} else {
+							fprintf (stderr, "%s: error reading input file %s\n",
+								 progname, current->filename);
+						}
+					}
 				}
 			}
+			read_image = 0;
 		}
 
-		blend (beu, display, parent, current);
+		if (nr_inputs == 3)
+			blend (beu, display, &in[0].surface, &in[1].surface, &in[2].surface);
+		else if (nr_inputs == 2)
+			blend (beu, display, &in[0].surface, &in[1].surface, NULL);
+		else if (nr_inputs == 1)
+			blend (beu, display, &in[0].surface, NULL, NULL);
 
 		key = getch();
 		switch (key)
@@ -601,10 +581,11 @@ int main (int argc, char * argv[])
 	refresh();
 	endwin();*/
 
+	for (i=0; i<nr_inputs; i++)
+		uiomux_free (uiomux, UIOMUX_SH_BEU, in[i].virt, in[i].size);
+
 	display_close(display);
 	shbeu_close(beu);
-	uiomux_free (uiomux, UIOMUX_SH_BEU, parent->virt, parent->size);
-	uiomux_free (uiomux, UIOMUX_SH_BEU, current->virt, current->size);
 	uiomux_close (uiomux);
 
 
