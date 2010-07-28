@@ -28,7 +28,7 @@
 #include "shbeu/shbeu.h"
 #include "shbeu_regs.h"
 
-#define DEBUG 2
+//#define DEBUG 2
 
 #ifdef DEBUG
 #define debug_info(s) fprintf(stderr, "%s: %s\n", __func__, s)

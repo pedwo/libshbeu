@@ -350,7 +350,7 @@ int main (int argc, char * argv[])
 	int ret;
 	int read_image = 1;
 	int key;
-	int run = 0;
+	int run = 1;
 
 	int show_version = 0;
 	int show_help = 0;
@@ -514,11 +514,11 @@ int main (int argc, char * argv[])
 	}
 
 
-	/* ncurses init *
+	/* ncurses init */
 	initscr();
 	noecho();
 	cbreak();
-	keypad(stdscr, TRUE);*/
+	keypad(stdscr, TRUE);
 
 	do
 	{
@@ -529,7 +529,7 @@ int main (int argc, char * argv[])
 					/* Read input */
 					if ((current->nread = fread (current->virt, 1, current->size, current->file)) != current->size) {
 						if (current->nread == 0 && feof (current->file)) {
-							break;
+							run = 0;
 						} else {
 							fprintf (stderr, "%s: error reading input file %s\n",
 								 progname, current->filename);
@@ -539,6 +539,8 @@ int main (int argc, char * argv[])
 			}
 			read_image = 0;
 		}
+		if (!run) break;
+
 
 		if (nr_inputs == 3)
 			blend (beu, display, &in[0].surface, &in[1].surface, &in[2].surface);
@@ -576,10 +578,10 @@ int main (int argc, char * argv[])
 	} while (run);
 
 
-	/* ncurses close *
+	/* ncurses close */
 	clrtoeol();
 	refresh();
-	endwin();*/
+	endwin();
 
 	for (i=0; i<nr_inputs; i++)
 		uiomux_free (uiomux, UIOMUX_SH_BEU, in[i].virt, in[i].size);
