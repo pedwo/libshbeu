@@ -15,10 +15,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#ifdef HAVE_NCURSES
 #ifdef HAVE_NCURSES_SUBDIR
 #include <ncurses/ncurses.h>
 #else
 #include <ncurses.h>
+#endif
 #endif
 #include <uiomux/uiomux.h>
 #include "shbeu/shbeu.h"
@@ -514,11 +516,13 @@ int main (int argc, char * argv[])
 	}
 
 
+#ifdef HAVE_NCURSES
 	/* ncurses init */
 	initscr();
 	noecho();
 	cbreak();
 	keypad(stdscr, TRUE);
+#endif
 
 	do
 	{
@@ -537,7 +541,9 @@ int main (int argc, char * argv[])
 					}
 				}
 			}
+#ifdef HAVE_NCURSES
 			read_image = 0;
+#endif
 		}
 		if (!run) break;
 
@@ -549,6 +555,7 @@ int main (int argc, char * argv[])
 		else if (nr_inputs == 1)
 			blend (beu, display, &in[0].surface, NULL, NULL);
 
+#ifdef HAVE_NCURSES
 		key = getch();
 		switch (key)
 		{
@@ -575,13 +582,16 @@ int main (int argc, char * argv[])
 			run = 0;
 			break;
 		}
+#endif
 	} while (run);
 
 
+#ifdef HAVE_NCURSES
 	/* ncurses close */
 	clrtoeol();
 	refresh();
 	endwin();
+#endif
 
 	for (i=0; i<nr_inputs; i++)
 		uiomux_free (uiomux, UIOMUX_SH_BEU, in[i].virt, in[i].size);

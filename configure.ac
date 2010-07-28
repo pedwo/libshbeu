@@ -141,7 +141,7 @@ if test "x$HAVE_NCURSES" = "xmaybe" ; then
   fi
 fi
 if test "x$HAVE_NCURSES" = "xyes" ; then
-  ncurses_programs=shbeu-display
+  AC_DEFINE(HAVE_NCURSES, [], [Define to 1 if ncurses is available])
 fi
 AM_CONDITIONAL(HAVE_NCURSES, [test "x$HAVE_NCURSES" = "xyes"])
 
@@ -279,7 +279,7 @@ AC_MSG_RESULT([
 
   Tools:
 
-    shbeu-convert ${ncurses_programs}
+    shbeu-display
 
   Installation paths:
 
