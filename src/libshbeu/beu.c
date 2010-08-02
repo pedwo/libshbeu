@@ -360,7 +360,7 @@ shbeu_start_blend(
 
 	if (src2) {
 		if (different_colorspace(src1->format, src2->format)) {
-			unsigned long bsifr = read_reg(ump, BSIFR);
+			unsigned long bsifr = read_reg(ump, BSIFR + SRC1_BASE);
 			debug_info("Setting BSIFR1 IN1TE bit");
 			bsifr  |= (BSIFR1_IN1TE | BSIFR1_IN1TM);
 			write_reg(ump, bsifr, BSIFR + SRC1_BASE);
