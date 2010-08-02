@@ -13,6 +13,46 @@ This source archive contains:
  * src/libshbeu: the libshbeu shared library
  * src/tools: commandline tools
 
+libshbeu API
+------------
+
+libshbeu allows both synchronous and asynchronous access to the BEU. The synchronous API
+provides a one-shot function shbeu_blend(). The asychronous API replaces this with a
+similar but non-blocking function, shbeu_start_blend(), and a corresponding shbeu_wait().
+
+
+shbeu-display
+-------------
+
+shbeu-display is a commandline program for displaying raw image or video
+files. It uses the SH-Mobile BEU to perform simultaneous colorspace conversion
+and blending on each input frame. It allows the user to pan the foremost
+image.
+
+    Usage: shbeu-display [options] -i <input file>
+    Overlays raw image data using the SH-Mobile BEU and displays on screen.
+    Options and input file can be specified for up to 3 inputs, e.g.
+      shbeu-display -s vga -i vga.yuv -s qvga -i qvga.rgb -s qcif -i qcif.rgb
+
+    Input options
+      -c, --input-colorspace (RGB565, NV12, YCbCr420, YCbCr422)
+                             Specify input colorspace
+      -s, --input-size       Set the input image size (qcif, cif, qvga, vga, d1, 720p)
+
+    Control keys
+      Cursor keys            Pan
+      =                      Reset panning
+      q                      Quit
+
+    Miscellaneous options
+      -h, --help             Display this help and exit
+      -v, --version          Output version information and exit
+
+    File extensions are interpreted as follows unless otherwise specified:
+      .yuv    YCbCr420
+      .rgb    RGB565
+
+
 SH-Mobile
 ---------
 
