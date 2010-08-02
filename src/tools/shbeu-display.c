@@ -515,6 +515,23 @@ int main (int argc, char * argv[])
 		current->surface.y = 0;
 	}
 
+#if TEST_PER_PIXEL_ALPHA
+	/* Apply per-pixel alpha to top layer */
+	{
+		int y, alpha = 255;
+		unsigned char *pA;
+
+		/* Create alpha plane */
+		pA = uiomux_malloc (uiomux, UIOMUX_SH_BEU, (current->surface.width * current->surface.height), 32);
+		if (pA) {
+			for (y=0; y<current->surface.height; y++) {
+				alpha = (y << 8) / current->surface.height;
+				memset(pA+y*current->surface.width, alpha, current->surface.width);
+			}
+		}
+		current->surface.pa = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, pA);;
+	}
+#endif
 
 #ifdef HAVE_NCURSES
 	/* ncurses init */

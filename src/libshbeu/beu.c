@@ -164,6 +164,8 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	if ((surface->width > 4092) || (surface->pitch > 4092) || (surface->height > 4092))
 		return -1;
 
+	if (is_rgb(surface->format) && surface->pa)
+		return -1;
  
 	width = surface->width;
 	height = surface->height;
@@ -218,6 +220,8 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	tmp = read_reg(ump, BBLCR0);
 	if (!surface->pa)
 		tmp |= ((surface->alpha & 0xFF) << index*8);
+	else
+		tmp |= (1 << index+28);
 	write_reg(ump, tmp, BBLCR0);
 
 	return 0;
