@@ -1,6 +1,6 @@
 ################################################################################
-# libshbeu: A library for controlling SH-Mobile hardware codecs             #
-# Copyright (C) 2009 Renesas Technology Corp.                                  #
+# libshbeu: A library for controlling SH-Mobile BEU hardware                   #
+# Copyright (C) 2010 Renesas Electronics Corporation                           #
 #                                                                              #
 # This library is free software; you can redistribute it and/or                #
 # modify it under the terms of the GNU Library General Public                  #

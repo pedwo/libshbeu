@@ -3,7 +3,7 @@ libshbeu
 
 libshbeu: A library for controlling the SH-Mobile BEU.
 
-Copyright (C) 2010 Renesas Technology Corp.
+Copyright (C) 2010 Renesas Electronics Corporation
 
 The [SH-Mobile][0] processor series includes a hardware blend engine
 unit (BEU) that supports image overlay.
