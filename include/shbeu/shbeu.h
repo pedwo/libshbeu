@@ -151,7 +151,7 @@ void shbeu_close(SHBEU *beu);
  * \param beu BEU handle
  * \param src1 Parent surface. The output will be this size.
  * \param src2 Overlay surface. Can be NULL, if no overlay required.
- * \param src3 Overlay surface. Can be NULL, if no overlay required. Must be same pixel format as src2.
+ * \param src3 Overlay surface. Can be NULL, if no overlay required.
  * \param dest Output surface.
  * \retval 0 Success
  * \retval -1 Error

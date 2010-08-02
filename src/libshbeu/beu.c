@@ -28,7 +28,7 @@
 #include "shbeu/shbeu.h"
 #include "shbeu_regs.h"
 
-//#define DEBUG 2
+/* #define DEBUG 2 */
 
 #ifdef DEBUG
 #define debug_info(s) fprintf(stderr, "%s: %s\n", __func__, s)
@@ -297,6 +297,8 @@ shbeu_start_blend(
 	unsigned long start_reg;
 	unsigned long control_reg;
 	beu_surface_t *src_check = src1;
+	unsigned long bblcr1 = 0;
+	unsigned long bblcr0 = 0;
 
 	debug_info("in");
 
@@ -304,12 +306,27 @@ shbeu_start_blend(
 	if (!pvt || !src1 || !dest)
 		return -1;
 
-	/* Check src2 and src3 formats are the same */
+	/* Ensure src2 and src3 formats are the same type (only input 1 on the
+	   hardware has colorspace conversion */
 	if (src2 && src3) {
-		if (src2->format != src3->format)
-			return -1;
+		if (different_colorspace(src2->format, src3->format)) {
+			if (different_colorspace(src1->format, src2->format)) {
+				/* src2 is the odd one out, swap 1 and 2 */
+				beu_surface_t *tmp = src2;
+				src2 = src1;
+				src1 = tmp;
+				bblcr1 = (1 << 24);
+				bblcr0 = (2 << 24);
+			} else {
+				/* src3 is the odd one out, swap 1 and 3 */
+				beu_surface_t *tmp = src3;
+				src3 = src1;
+				src1 = tmp;
+				bblcr1 = (2 << 24);
+				bblcr0 = (5 << 24);
+			}
+		}
 	}
-
 
 	uiomux_lock (pvt->uiomux, UIOMUX_SH_BEU);
 
@@ -343,11 +360,11 @@ shbeu_start_blend(
 	/* Not using "multi-window" capability */
 	write_reg(ump, 0, BMWCR0);
 
-	/* Set surface 1 as the parent; output to memory */
-	write_reg(ump, BBLCR1_OUTPUT_MEM, BBLCR1);
+	/* Set parent surface; output to memory */
+	write_reg(ump, bblcr1 | BBLCR1_OUTPUT_MEM, BBLCR1);
 
-	/* Set surface 1 to back, surface 2 to middle & surface 2 to front */
-	write_reg(ump, 0, BBLCR0);
+	/* Set surface order */
+	write_reg(ump, bblcr0, BBLCR0);
 
 	if (setup_src_surface(ump, 0, src1) < 0)
 		goto err;
