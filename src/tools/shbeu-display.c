@@ -1,5 +1,9 @@
 /*
- * Tool to overlay an image onto the display
+ * Tool to demonstrate BEU hardware acceleration of raw image overlay.
+ *
+ * The RGB/YCbCr source images are read from files and displayed one on top of
+ * another on the framebuffer. It uses an ncurses interface to allow the user
+ * move the top most image and advance the image input.
  */
 
 #ifdef HAVE_CONFIG_H

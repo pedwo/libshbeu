@@ -28,7 +28,8 @@ extern "C" {
  *
  * \section intro SHBEU: A library for accessing the BEU.
  *
- * This is the documentation for the SHBEU C API.
+ * This is the documentation for the SHBEU C API. Please read the associated
+ * README, COPYING and TODO files.
  *
  * Features:
  *  - Simple interface to blend images

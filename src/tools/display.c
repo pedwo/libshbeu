@@ -1,5 +1,5 @@
 /**
- * SH display
+ * SH display. This file implements helper functions to access the framebuffer.
  *
  */
 

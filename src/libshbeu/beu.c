@@ -73,15 +73,6 @@ static void write_reg(struct uio_map *ump, unsigned long value, int reg_nr)
 	*reg = value;
 }
 
-void shbeu_close(SHBEU *pvt)
-{
-	if (pvt) {
-		if (pvt->uiomux)
-			uiomux_close(pvt->uiomux);
-		free(pvt);
-	}
-}
-
 SHBEU *shbeu_open(void)
 {
 	SHBEU *beu;
@@ -111,6 +102,15 @@ SHBEU *shbeu_open(void)
 err:
 	shbeu_close(beu);
 	return 0;
+}
+
+void shbeu_close(SHBEU *pvt)
+{
+	if (pvt) {
+		if (pvt->uiomux)
+			uiomux_close(pvt->uiomux);
+		free(pvt);
+	}
 }
 
 static int is_ycbcr(int fmt)

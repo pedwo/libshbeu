@@ -5,8 +5,8 @@ libshbeu: A library for controlling the SH-Mobile BEU.
 
 Copyright (C) 2010 Renesas Electronics Corporation
 
-The [SH-Mobile][0] processor series includes a hardware blend engine
-unit (BEU) that supports image overlay.
+The [SH-Mobile][0] processor series includes a hardware blend engine unit (BEU)
+that supports image overlay.
 
 This source archive contains:
 
@@ -16,18 +16,20 @@ This source archive contains:
 libshbeu API
 ------------
 
-libshbeu allows both synchronous and asynchronous access to the BEU. The synchronous API
-provides a one-shot function shbeu_blend(). The asychronous API replaces this with a
-similar but non-blocking function, shbeu_start_blend(), and a corresponding shbeu_wait().
+libshbeu allows both synchronous and asynchronous access to the BEU. The
+synchronous API provides a one-shot function shbeu_blend(). The asychronous API
+replaces this with a similar but non-blocking function, shbeu_start_blend(),
+and a corresponding shbeu_wait().
+
+Please see doc/libshbeu/html/index.html for API details.
 
 
 shbeu-display
 -------------
 
-shbeu-display is a commandline program for displaying raw image or video
-files. It uses the SH-Mobile BEU to perform simultaneous colorspace conversion
-and blending on each input frame. It allows the user to pan the foremost
-image.
+shbeu-display is a commandline program for displaying raw image or video files.
+It uses the SH-Mobile BEU to perform simultaneous colorspace conversion and
+blending on each input frame. It allows the user to pan the foremost image.
 
     Usage: shbeu-display [options] -i <input file>
     Overlays raw image data using the SH-Mobile BEU and displays on screen.
@@ -56,10 +58,9 @@ image.
 SH-Mobile
 ---------
 
-The [SH-Mobile][0] processor series includes a hardware video engine
-unit that supports colorspace conversion, rotation and scaling. Some models
-also include support for camera capture, JPEG processing, and DSP
-instructions.
+The [SH-Mobile][0] processor series includes a hardware video engine unit that
+supports colorspace conversion, rotation and scaling. Some models also include
+support for camera capture, JPEG processing, and DSP instructions.
 
 [0]: http://www.renesas.com/fmwk.jsp?cnt=sh_mobile_family_landing.jsp&fp=/products/mpumcu/sh_mobile/
 
@@ -69,7 +70,8 @@ Kernel configuration
 libshbeu uses the Linux kernel UIO support for the SH-Mobile BEU, this is not
 in the mainline kernel. You will have to manually add this capability.
 
-The following kernel boot option reserves physically contiguous memory for BEU use:
+The following kernel boot option reserves physically contiguous memory for BEU
+use:
 
     memchunk.beu=4m
 
