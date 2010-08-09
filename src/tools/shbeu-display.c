@@ -323,7 +323,8 @@ static void blend(
 	DISPLAY *display,
 	beu_surface_t *parent,
 	beu_surface_t *overlay1,
-	beu_surface_t *overlay2)
+	beu_surface_t *overlay2,
+	int nr_inputs)
 {
 	unsigned char *bb_virt = display_get_back_buff_virt(display);
 	unsigned long  bb_phys = display_get_back_buff_phys(display);
@@ -339,11 +340,79 @@ static void blend(
 	dst.pitch = lcd_w;
 	dst.format = V4L2_PIX_FMT_RGB565;
 
-	shbeu_blend(beu, parent, overlay1, overlay2, &dst);
+	if (nr_inputs == 3)
+		shbeu_blend(beu, parent, overlay1, overlay2, &dst);
+	else if (nr_inputs == 2)
+		shbeu_blend(beu, parent, overlay1, NULL, &dst);
+	else if (nr_inputs == 1)
+		shbeu_blend(beu, parent, NULL, NULL, &dst);
 
 	display_flip(display);
 }
 
+int setup_input_surface(char *progname, UIOMux *uiomux, int i, surface_t *s)
+{
+	printf ("[%d] Input colorspace:\t%s\n", i, show_colorspace (s->surface.format));
+	printf ("[%d] Input size:      \t%dx%d %s\n", i, s->surface.width, s->surface.height,
+		show_size (s->surface.width, s->surface.height));
+
+	s->file = fopen (s->filename, "rb");
+	if (s->file == NULL) {
+		fprintf (stderr, "%s: unable to open input file %s\n",
+			 progname, s->filename);
+		return -1;
+	}
+
+	s->size = imgsize (s->surface.format, s->surface.width, s->surface.height);
+	s->virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, s->size, 32);
+	if (!s->virt) {
+		perror("uiomux_malloc");
+		return -1;
+	}
+	s->surface.pitch = s->surface.width;
+	s->surface.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, s->virt);
+	s->surface.pc = s->surface.py + (s->surface.width * s->surface.height);
+	s->surface.pa = 0;
+	s->surface.alpha = 255 - i*70;	/* 1st layer opaque, others semi-transparent */
+	s->surface.x = 0;
+	s->surface.y = 0;
+
+	return 0;
+}
+
+void create_per_pixel_alpha(UIOMux *uiomux, surface_t *s)
+{
+	int y, alpha = 255;
+	unsigned char *pA;
+
+	/* Create alpha plane */
+	pA = uiomux_malloc (uiomux, UIOMUX_SH_BEU, (s->surface.width * s->surface.height), 32);
+	if (pA) {
+		for (y=0; y<s->surface.height; y++) {
+			alpha = (y << 8) / s->surface.height;
+			memset(pA+y*s->surface.width, alpha, s->surface.width);
+		}
+	}
+	s->surface.pa = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, pA);
+}
+
+int read_image_from_file(surface_t *s)
+{
+	int run = 1;
+
+	if (s->filename) {
+		/* Read input */
+		if ((s->nread = fread (s->virt, 1, s->size, s->file)) != s->size) {
+			if (s->nread == 0 && feof (s->file)) {
+				run = 0;
+			} else {
+				fprintf (stderr, "error reading input file %s\n", s->filename);
+			}
+		}
+	}
+
+	return run;
+}
 
 int main (int argc, char * argv[])
 {
@@ -493,48 +562,13 @@ int main (int argc, char * argv[])
 
 		if (error) goto exit_err;
 
-		printf ("[%d] Input colorspace:\t%s\n", i, show_colorspace (current->surface.format));
-		printf ("[%d] Input size:      \t%dx%d %s\n", i, current->surface.width, current->surface.height,
-			show_size (current->surface.width, current->surface.height));
-
-		current->file = fopen (current->filename, "rb");
-		if (current->file == NULL) {
-			fprintf (stderr, "%s: unable to open input file %s\n",
-				 progname, current->filename);
+		if (setup_input_surface(progname, uiomux, i, current) < 0) 
 			goto exit_err;
-		}
-
-		current->size = imgsize (current->surface.format, current->surface.width, current->surface.height);
-		current->virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, current->size, 32);
-		if (!current->virt) {
-			perror("uiomux_malloc");
-			goto exit_err;
-		}
-		current->surface.pitch = current->surface.width;
-		current->surface.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, current->virt);
-		current->surface.pc = current->surface.py + (current->surface.width * current->surface.height);
-		current->surface.pa = 0;
-		current->surface.alpha = 255 - i*70;	/* 1st layer opaque, others semi-transparent */
-		current->surface.x = 0;
-		current->surface.y = 0;
 	}
 
 #if TEST_PER_PIXEL_ALPHA
 	/* Apply per-pixel alpha to top layer */
-	{
-		int y, alpha = 255;
-		unsigned char *pA;
-
-		/* Create alpha plane */
-		pA = uiomux_malloc (uiomux, UIOMUX_SH_BEU, (current->surface.width * current->surface.height), 32);
-		if (pA) {
-			for (y=0; y<current->surface.height; y++) {
-				alpha = (y << 8) / current->surface.height;
-				memset(pA+y*current->surface.width, alpha, current->surface.width);
-			}
-		}
-		current->surface.pa = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, pA);;
-	}
+	create_per_pixel_alpha(uiomux, current);
 #endif
 
 #ifdef HAVE_NCURSES
@@ -548,33 +582,17 @@ int main (int argc, char * argv[])
 	do
 	{
 		if (read_image) {
-			for (i=0; i<nr_inputs; i++) {
-				current = &in[i];
-				if (current->filename) {
-					/* Read input */
-					if ((current->nread = fread (current->virt, 1, current->size, current->file)) != current->size) {
-						if (current->nread == 0 && feof (current->file)) {
-							run = 0;
-						} else {
-							fprintf (stderr, "%s: error reading input file %s\n",
-								 progname, current->filename);
-						}
-					}
-				}
-			}
+			/* Read the next image for each input. Stop if any file lacks further data */
+			for (i=0; i<nr_inputs; i++)
+				run = read_image_from_file(&in[i]);
 #ifdef HAVE_NCURSES
 			read_image = 0;
 #endif
 		}
 		if (!run) break;
 
-
-		if (nr_inputs == 3)
-			blend (beu, display, &in[0].surface, &in[1].surface, &in[2].surface);
-		else if (nr_inputs == 2)
-			blend (beu, display, &in[0].surface, &in[1].surface, NULL);
-		else if (nr_inputs == 1)
-			blend (beu, display, &in[0].surface, NULL, NULL);
+		/* Perform the blend */
+		blend (beu, display, &in[0].surface, &in[1].surface, &in[2].surface, nr_inputs);
 
 #ifdef HAVE_NCURSES
 		key = getch();

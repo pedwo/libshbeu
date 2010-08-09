@@ -28,12 +28,11 @@
 #define MIRROR  0x2000
 
 
-#define BESTR  0x00		/* start register */
-#define BESTR_BEIVK 1
-#define BESTR_CHON1 (1 << 8)
-#define BESTR_CHON2 (2 << 8)
-#define BESTR_CHON3 (4 << 8)
+#define BESTR  0x00		/* Start register */
 
+/*
+ * Image source registers
+ */
 #define SRC1_BASE 0x10
 #define SRC2_BASE 0x28
 #define SRC3_BASE 0x40
@@ -47,12 +46,14 @@
 
 #define BTPSR 0x58		/* tile pattern size */
 
-/* Multidisplay registers */
+/*
+ * Multidisplay registers
+ */
 #define MD_SRC1_BASE 0x70
 #define MD_SRC2_BASE 0x80
 #define MD_SRC3_BASE 0x90
 #define MD_SRC4_BASE 0xA0
-/* All 3 inputs have these Multidisplay registers: */
+/* All 4 Multidisplay inputs have these registers: */
 #define BMSMWR 0x00		/* src: line length */
 #define BMSSZR 0x04		/* src: image size */
 #define BMSAYR 0x08		/* src: y/rgb plane address */
@@ -60,20 +61,20 @@
 
 #define BMSIFR 0xf0		/* src: format */
 
-
-/* Other registers */
+/*
+ * Other registers
+ */
 #define BBLCR0 0x100	/* blend control 0 */
 #define BBLCR1 0x104	/* blend control 1 */
-
 #define BPROCR 0x108	/* process control */
 #define BMWCR0 0x10c	/* multiwindow control 0 */
-
 #define BLOCR1 0x114	/* Blend location 1 */
 #define BLOCR2 0x118	/* Blend location 2 */
 #define BLOCR3 0x11c	/* Blend location 3 */
 
-
-/* Multidisplay registers */
+/*
+ * Multidisplay registers
+ */
 #define BMLOCR1 0x120	/* Multidisplay location 1 */
 #define BMLOCR2 0x124	/* Multidisplay location 2 */
 #define BMLOCR3 0x128	/* Multidisplay location 3 */
@@ -81,17 +82,22 @@
 #define BMPCCR1 0x130	/* Multidisplay transparent control 1 */
 #define BMPCCR2 0x134	/* Multidisplay transparent control 2 */
 
-
 #define BPKFR   0x140	/* Blend pack form */
 
-#define BPCCR0  0x144	/* transparent control */
-#define BPCCR11 0x148	/* transparent control */
-#define BPCCR12 0x14c	/* transparent control */
-#define BPCCR21 0x150	/* transparent control */
-#define BPCCR22 0x154	/* transparent control */
-#define BPCCR31 0x158	/* transparent control */
-#define BPCCR32 0x15c	/* transparent control */
+/*
+ * Transparent control
+ */
+#define BPCCR0  0x144	
+#define BPCCR11 0x148
+#define BPCCR12 0x14c
+#define BPCCR21 0x150
+#define BPCCR22 0x154
+#define BPCCR31 0x158
+#define BPCCR32 0x15c
 
+/*
+ * Image destination registers
+ */
 #define BDMWR   0x160	/* dst: line length */
 #define BDAYR   0x164	/* dst: y/rgb plane address */
 #define BDACR   0x168	/* dst: c plane address */
@@ -107,6 +113,16 @@
 
 #define CLUT_BASE 0x3000	/* Color Lookup Table */
 
+
+/*
+ * Bits within registers
+ */
+
+/* BESTR */
+#define BESTR_BEIVK 1
+#define BESTR_CHON1 (1 << 8)
+#define BESTR_CHON2 (2 << 8)
+#define BESTR_CHON3 (4 << 8)
 
 /* BSIFRx */
 #define CHRR_YCBCR_422   (1 << 8)
@@ -127,6 +143,7 @@
 #define WPCK_RGB16       6
 #define WPCK_RGB32       0x13
 
+/* Others */
 #define BSIFR1_IN1TM	(1 << 13)
 #define BSIFR1_IN1TE 	(1 << 12)
 #define BSWPR_MODSEL	(1UL << 31)
