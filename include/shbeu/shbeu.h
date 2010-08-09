@@ -121,9 +121,9 @@ typedef struct {
 	int width;          /**< Width in pixels (ignored for destination surface) */
 	int height;         /**< Height in pixels (ignored for destination surface) */
 	int pitch;          /**< Line pitch in pixels */
-	int x;              /**< Format (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32) */
-	int y;              /**< Overlay position (horizontal) (ignored for destination surface) */
-	int format;         /**< Overlay position (vertical) (ignored for destination surface) */
+	int x;              /**< Overlay position (horizontal) (ignored for destination surface) */
+	int y;              /**< Overlay position (vertical) (ignored for destination surface) */
+	int format;         /**< Format (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32) */
 } beu_surface_t;
 
 
