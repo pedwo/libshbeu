@@ -234,31 +234,8 @@ static int guess_colorspace (char * filename, int * c)
 static int guess_size (char * filename, int colorspace, int * w, int * h)
 {
 	off_t size;
-	int n=0, d=1;
-
-	/* If the size is already set (eg. explicitly by user args)
-	 * then don't try to guess */
-	if (*w != -1 && *h != -1) return -1;
 
 	if ((size = filesize (filename)) == -1) {
-		return -1;
-	}
-
-	switch (colorspace) {
-	case V4L2_PIX_FMT_RGB32:
-		/* 4 bytes per pixel */
-		n=4; d=1;
-		break;
-	case V4L2_PIX_FMT_RGB565:
-	case V4L2_PIX_FMT_NV16:
-		/* 2 bytes per pixel */
-		n=2; d=1;
-		break;
-	case V4L2_PIX_FMT_NV12:
-		/* 3/2 bytes per pixel */
-		n=3; d=2;
-		break;
-	default:
 		return -1;
 	}
 
@@ -268,22 +245,16 @@ static int guess_size (char * filename, int colorspace, int * w, int * h)
 		int i;
 
 		for (i=0; i<nr_sizes; i++) {
-			if (size == sizes[i].w*sizes[i].h*n/d) {
+
+			if (size == imgsize(colorspace, sizes[i].w, sizes[i].h)) {
 				*w = sizes[i].w;
 				*h = sizes[i].h;
-				break;
+				return 0;
 			}
 		}
-		return -1;
-	} else if (*h != -1) {
-		/* Height has been specified */
-		*w = size * d / (*h * n);
-	} else if (*w != -1) {
-		/* Width has been specified */
-		*h = size * d / (*w * n);
 	}
 
-	return 0;
+	return -1;
 }
 
 
