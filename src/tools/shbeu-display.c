@@ -274,9 +274,7 @@ static void draw_rect_rgb565(void *surface, uint16_t color, int x, int y, int w,
 static void blend(
 	SHBEU *beu,
 	DISPLAY *display,
-	beu_surface_t *parent,
-	beu_surface_t *overlay1,
-	beu_surface_t *overlay2,
+	beu_surface_t **sources,
 	int nr_inputs)
 {
 	unsigned char *bb_virt = display_get_back_buff_virt(display);
@@ -284,6 +282,7 @@ static void blend(
 	int lcd_w = display_get_width(display);
 	int lcd_h = display_get_height(display);
 	beu_surface_t dst;
+	int i;
 
 	/* Clear the back buffer */
 	draw_rect_rgb565(bb_virt, BLACK, 0, 0, lcd_w, lcd_h, lcd_w);
@@ -293,12 +292,20 @@ static void blend(
 	dst.pitch = lcd_w;
 	dst.format = V4L2_PIX_FMT_RGB565;
 
+	/* Limit the size of the images used in blend to the LCD */
+	for (i=0; i<nr_inputs; i++) {
+		if (sources[i]->width > lcd_w)
+			sources[i]->width = lcd_w;
+		if (sources[i]->height > lcd_h)
+			sources[i]->height = lcd_h;
+	}
+
 	if (nr_inputs == 3)
-		shbeu_blend(beu, parent, overlay1, overlay2, &dst);
+		shbeu_blend(beu, sources[0], sources[1], sources[2], &dst);
 	else if (nr_inputs == 2)
-		shbeu_blend(beu, parent, overlay1, NULL, &dst);
+		shbeu_blend(beu, sources[0], sources[1], NULL, &dst);
 	else if (nr_inputs == 1)
-		shbeu_blend(beu, parent, NULL, NULL, &dst);
+		shbeu_blend(beu, sources[0], NULL, NULL, &dst);
 
 	display_flip(display);
 }
@@ -373,6 +380,7 @@ int main (int argc, char * argv[])
 	SHBEU *beu = NULL;
 	DISPLAY *display = NULL;
 	surface_t in[3];
+	beu_surface_t *beu_inputs[3];
 	surface_t *current;
 	int i, nr_inputs = 0;
 	int ret;
@@ -405,6 +413,7 @@ int main (int argc, char * argv[])
 		current->surface.width = -1;
 		current->surface.height = -1;
 		current->surface.format = -1;
+		beu_inputs[i] = &in[i].surface;
 	}
 	current = &in[nr_inputs];
 
@@ -536,7 +545,7 @@ int main (int argc, char * argv[])
 		if (!run) break;
 
 		/* Perform the blend */
-		blend (beu, display, &in[0].surface, &in[1].surface, &in[2].surface, nr_inputs);
+		blend (beu, display, beu_inputs, nr_inputs);
 
 #ifdef HAVE_NCURSES
 		key = getch();
