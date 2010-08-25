@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <getopt.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -35,6 +36,9 @@
 #define RED   0xF800
 #define GREEN 0x07E0
 #define BLUE  0x001F
+
+#define U_SEC_PER_SEC 1000000
+#define N_SEC_PER_SEC 1000000000
 
 typedef struct {
 	char * filename;
@@ -258,6 +262,27 @@ static int guess_size (char * filename, int colorspace, int * w, int * h)
 }
 
 
+/* Total microseconds elapsed */
+static long
+elapsed_us (struct timespec * start)
+{
+	struct timespec curr;
+	long secs, nsecs;
+	int ret;
+
+	ret = clock_gettime(CLOCK_MONOTONIC, &curr);
+	if (ret == -1) return ret;
+
+	secs = curr.tv_sec - start->tv_sec;
+	nsecs = curr.tv_nsec - start->tv_nsec;
+	if (nsecs < 0) {
+		secs--;
+		nsecs += N_SEC_PER_SEC;
+	}
+
+	return (secs*U_SEC_PER_SEC) + nsecs/1000;
+}
+
 static void draw_rect_rgb565(void *surface, uint16_t color, int x, int y, int w, int h, int span)
 {
 	uint16_t *pix = (uint16_t *)surface + y*span + x;
@@ -271,6 +296,9 @@ static void draw_rect_rgb565(void *surface, uint16_t color, int x, int y, int w,
 	}
 }
 
+static int nr_blends = 0;
+static long time_total_us = 0;
+
 static void blend(
 	SHBEU *beu,
 	DISPLAY *display,
@@ -283,6 +311,7 @@ static void blend(
 	int lcd_h = display_get_height(display);
 	beu_surface_t dst;
 	int i;
+	struct timespec start;
 
 	/* Clear the back buffer */
 	draw_rect_rgb565(bb_virt, BLACK, 0, 0, lcd_w, lcd_h, lcd_w);
@@ -300,12 +329,17 @@ static void blend(
 			sources[i]->height = lcd_h;
 	}
 
+	clock_gettime(CLOCK_MONOTONIC, &start);
+
 	if (nr_inputs == 3)
 		shbeu_blend(beu, sources[0], sources[1], sources[2], &dst);
 	else if (nr_inputs == 2)
 		shbeu_blend(beu, sources[0], sources[1], NULL, &dst);
 	else if (nr_inputs == 1)
 		shbeu_blend(beu, sources[0], NULL, NULL, &dst);
+
+	time_total_us += elapsed_us(&start);
+	nr_blends++;
 
 	display_flip(display);
 }
@@ -387,6 +421,7 @@ int main (int argc, char * argv[])
 	int read_image = 1;
 	int key;
 	int run = 1;
+	long us;
 
 	int show_version = 0;
 	int show_help = 0;
@@ -592,6 +627,8 @@ int main (int argc, char * argv[])
 	shbeu_close(beu);
 	uiomux_close (uiomux);
 
+	us = time_total_us/nr_blends;
+	printf("Average time for blend is %luus (%d pixel/us)\n", us, (in[0].surface.width * in[0].surface.height)/us);
 
 exit_ok:
 	exit (0);

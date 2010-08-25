@@ -13,4 +13,4 @@ endif
 bin_PROGRAMS = shbeu-display
 
 shbeu_display_SOURCES = shbeu-display.c display.c
-shbeu_display_LDADD = $(SHBEU_LIBS) $(UIOMUX_LIBS) $(ncurses_lib)
+shbeu_display_LDADD = $(SHBEU_LIBS) $(UIOMUX_LIBS) $(ncurses_lib) -lrt
