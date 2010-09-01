@@ -23,7 +23,7 @@ AC_CONFIG_SRCDIR([src/libshbeu/beu.c])
 
 AC_PREREQ(2.53)
 
-AM_INIT_AUTOMAKE(libshbeu, 0.0.1)
+AM_INIT_AUTOMAKE(libshbeu, 0.1.0)
 AM_CONFIG_HEADER(config.h)
 
 ################################################################################
