@@ -164,9 +164,13 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	if ((surface->width > 4092) || (surface->pitch > 4092) || (surface->height > 4092))
 		return -1;
 
-	if (is_rgb(surface->format) && surface->pa)
-		return -1;
- 
+	if (is_rgb(surface->format) && surface->pa) {
+		/* allow RGB32 when the alpha plane has the same physical address as py. 
+		   this is how we specify ARGB, because there is no V4L2_PIX_FMT for ARGB */
+		if (!((surface->format == V4L2_PIX_FMT_RGB32) && (surface->pa == surface->py)))
+			return -1;
+	}
+
 	width = surface->width;
 	height = surface->height;
 	pitch = surface->pitch;

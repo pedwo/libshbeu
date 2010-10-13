@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <time.h>
 #include <getopt.h>
 #include <sys/types.h>
@@ -30,6 +31,8 @@
 #include <uiomux/uiomux.h>
 #include "shbeu/shbeu.h"
 #include "display.h"
+
+//#define TEST_PER_PIXEL_ALPHA
 
 /* RGB565 colors */
 #define BLACK 0x0000
@@ -379,6 +382,10 @@ void create_per_pixel_alpha(UIOMux *uiomux, surface_t *s)
 	int y, alpha = 255;
 	unsigned char *pA;
 
+	if ((s->surface.format != V4L2_PIX_FMT_NV12)
+	    && (s->surface.format != V4L2_PIX_FMT_NV16))
+		return;
+
 	/* Create alpha plane */
 	pA = uiomux_malloc (uiomux, UIOMUX_SH_BEU, (s->surface.width * s->surface.height), 32);
 	if (pA) {
@@ -388,6 +395,29 @@ void create_per_pixel_alpha(UIOMux *uiomux, surface_t *s)
 		}
 	}
 	s->surface.pa = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, pA);
+}
+
+/* Generate some alpha values for packed ARGB8888 */
+void set_per_pixel_alpha_argb(UIOMux *uiomux, surface_t *s)
+{
+	int x, y, alpha = 255;
+	uint32_t *pARGB;
+	uint32_t argb;
+
+	if (s->surface.format != V4L2_PIX_FMT_RGB32)
+		return;
+
+	s->surface.pa = s->surface.py;
+	pARGB = uiomux_phys_to_virt (uiomux, UIOMUX_SH_BEU, s->surface.pa);
+
+	for (x=0; x<s->surface.width; x++) {
+		for (y=0; y<s->surface.height; y++) {
+			alpha = (y << 8) / s->surface.height;
+			argb = pARGB[x + y*s->surface.width];
+			argb = (argb & 0xFFFFFF) | (alpha << 24);
+			pARGB[x + y*s->surface.width] = argb;
+		}
+	}
 }
 
 int read_image_from_file(surface_t *s)
@@ -554,7 +584,7 @@ int main (int argc, char * argv[])
 			goto exit_err;
 	}
 
-#if TEST_PER_PIXEL_ALPHA
+#ifdef TEST_PER_PIXEL_ALPHA
 	/* Apply per-pixel alpha to top layer */
 	create_per_pixel_alpha(uiomux, current);
 #endif
@@ -571,8 +601,13 @@ int main (int argc, char * argv[])
 	{
 		if (read_image) {
 			/* Read the next image for each input. Stop if any file lacks further data */
-			for (i=0; i<nr_inputs; i++)
+			for (i=0; i<nr_inputs; i++) {
 				run = read_image_from_file(&in[i]);
+#ifdef TEST_PER_PIXEL_ALPHA
+				/* Apply per-pixel alpha to top layer */
+				set_per_pixel_alpha_argb(uiomux, current);
+#endif
+			}
 #ifdef HAVE_NCURSES
 			read_image = 0;
 #endif
