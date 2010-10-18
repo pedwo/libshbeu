@@ -225,7 +225,7 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	if (!surface->pa)
 		tmp |= ((surface->alpha & 0xFF) << index*8);
 	else
-		tmp |= (1 << index+28);
+		tmp |= (1 << (index+28));
 	write_reg(ump, tmp, BBLCR0);
 
 	return 0;
@@ -247,6 +247,9 @@ setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 	fprintf(stderr, "\ndest: fmt=%d: pitch=%lu\n", dest->format, dest->pitch);
 	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX)\n", dest->py, dest->pc);
 #endif
+
+	if (!dest->py)
+		return -1;
 
 	if ((dest->pitch % 4) || (dest->pitch > 4092))
 		return -1;
