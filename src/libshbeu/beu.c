@@ -317,6 +317,10 @@ shbeu_start_blend(
 	if (!pvt || !src1 || !dest)
 		return -1;
 
+	/* Check the size of the destination surface is big enough */
+	if (dest->pitch < src1->width)
+		return -1;
+
 	/* Ensure src2 and src3 formats are the same type (only input 1 on the
 	   hardware has colorspace conversion */
 	if (src2 && src3) {
