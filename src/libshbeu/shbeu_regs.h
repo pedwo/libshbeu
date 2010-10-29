@@ -131,6 +131,7 @@
 #define CHRR_aYCBCR_420  (5 << 8)
 #define RPKF_RGB32       0
 #define RPKF_RGB24       2
+#define RPKF_BGR24       11
 #define RPKF_RGB16       3
 
 /* BPKFR */
@@ -141,6 +142,7 @@
 #define BPKFR_RY 		(1 << 11)
 #define BPKFR_TE 		(1 << 10)
 #define WPCK_RGB16       6
+#define WPCK_RGB24       0x15
 #define WPCK_RGB32       0x13
 
 /* Others */

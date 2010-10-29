@@ -113,6 +113,24 @@ void shbeu_close(SHBEU *pvt)
 	}
 }
 
+static const char *format_string(int fmt)
+{
+	if (fmt == V4L2_PIX_FMT_NV12)
+		return "V4L2_PIX_FMT_NV12";
+	if (fmt == V4L2_PIX_FMT_NV16)
+		return "V4L2_PIX_FMT_NV16";
+	if (fmt == V4L2_PIX_FMT_RGB565)
+		return "V4L2_PIX_FMT_RGB565";
+	if (fmt == V4L2_PIX_FMT_RGB24)
+		return "V4L2_PIX_FMT_RGB24";
+	if (fmt == V4L2_PIX_FMT_BGR24)
+		return "V4L2_PIX_FMT_BGR24";
+	if (fmt == V4L2_PIX_FMT_RGB32)
+		return "V4L2_PIX_FMT_RGB32";
+	return "Unknown format!";
+}
+
+
 static int is_ycbcr(int fmt)
 {
 	if ((fmt == V4L2_PIX_FMT_NV12) || (fmt == V4L2_PIX_FMT_NV16))
@@ -122,7 +140,8 @@ static int is_ycbcr(int fmt)
 
 static int is_rgb(int fmt)
 {
-	if ((fmt == V4L2_PIX_FMT_RGB565) || (fmt == V4L2_PIX_FMT_RGB32))
+	if ((fmt == V4L2_PIX_FMT_RGB565) || (fmt == V4L2_PIX_FMT_RGB32)
+	    || (fmt == V4L2_PIX_FMT_RGB24) || (fmt == V4L2_PIX_FMT_BGR24))
 		return 1;
 	return 0;
 }
@@ -149,8 +168,8 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 		return 0;
 
 #ifdef DEBUG
-	fprintf(stderr, "\nsrc%d: fmt=%d: width=%lu, height=%lu pitch=%lu\n",
-		index+1, surface->format, surface->width, surface->height, surface->pitch);
+	fprintf(stderr, "\nsrc%d: fmt=%s: width=%lu, height=%lu pitch=%lu\n",
+		index+1, format_string(surface->format), surface->width, surface->height, surface->pitch);
 	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX), alpha (0x%lX)\n", surface->py, surface->pc, surface->pa);
 	fprintf(stderr, "\toffset=(%lu,%lu), alternative alpha =%lu\n", surface->x, surface->y, surface->alpha);
 #endif
@@ -178,6 +197,10 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	/* BSMWR (pitch) is in bytes */
 	if (surface->format == V4L2_PIX_FMT_RGB565)
 		pitch *= 2;
+	else if (surface->format == V4L2_PIX_FMT_RGB24)
+		pitch *= 3;
+	else if (surface->format == V4L2_PIX_FMT_BGR24)
+		pitch *= 3;
 	else if (surface->format == V4L2_PIX_FMT_RGB32)
 		pitch *= 4;
 	write_reg(ump, pitch, BSMWR + offset);
@@ -198,6 +221,10 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 		fmt_reg = CHRR_aYCBCR_422;
 	else if (surface->format == V4L2_PIX_FMT_RGB565)
 		fmt_reg = RPKF_RGB16;
+	else if (surface->format == V4L2_PIX_FMT_RGB24)
+		fmt_reg = RPKF_BGR24;	/* Notice the order change */
+	else if (surface->format == V4L2_PIX_FMT_BGR24)
+		fmt_reg = RPKF_RGB24;	/* Notice the order change */
 	else if (surface->format == V4L2_PIX_FMT_RGB32)
 		fmt_reg = RPKF_RGB32;
 	else
@@ -244,7 +271,7 @@ setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 		return -1;
 
 #ifdef DEBUG
-	fprintf(stderr, "\ndest: fmt=%d: pitch=%lu\n", dest->format, dest->pitch);
+	fprintf(stderr, "\ndest: fmt=%s: pitch=%lu\n", format_string(dest->format), dest->pitch);
 	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX)\n", dest->py, dest->pc);
 #endif
 
@@ -258,6 +285,8 @@ setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 	tmp = dest->pitch;
 	if (dest->format == V4L2_PIX_FMT_RGB565)
 		tmp *= 2;
+	else if (dest->format == V4L2_PIX_FMT_BGR24)
+		tmp *= 3;
 	else if (dest->format == V4L2_PIX_FMT_RGB32)
 		tmp *= 4;
 	write_reg(ump, tmp, BDMWR);
@@ -273,6 +302,8 @@ setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 		fmt_reg = CHRR_YCBCR_422;
 	else if (dest->format == V4L2_PIX_FMT_RGB565)
 		fmt_reg = WPCK_RGB16;
+	else if (dest->format == V4L2_PIX_FMT_BGR24)
+		fmt_reg = WPCK_RGB24; /* Notice the order change */
 	else if (dest->format == V4L2_PIX_FMT_RGB32)
 		fmt_reg = WPCK_RGB32;
 	else
