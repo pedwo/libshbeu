@@ -222,9 +222,9 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	else if (surface->format == V4L2_PIX_FMT_RGB565)
 		fmt_reg = RPKF_RGB16;
 	else if (surface->format == V4L2_PIX_FMT_RGB24)
-		fmt_reg = RPKF_BGR24;	/* Notice the order change */
+		fmt_reg = RPKF_RGB24;
 	else if (surface->format == V4L2_PIX_FMT_BGR24)
-		fmt_reg = RPKF_RGB24;	/* Notice the order change */
+		fmt_reg = RPKF_BGR24;
 	else if (surface->format == V4L2_PIX_FMT_RGB32)
 		fmt_reg = RPKF_RGB32;
 	else
@@ -236,6 +236,7 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	tmp = (surface->y << 16) | surface->x;
 	write_reg(ump, tmp, BLOCR1 + index*4);
 
+#ifdef __LITTLE_ENDIAN__
 	/* byte/word swapping */
 	tmp = read_reg(ump, BSWPR);
 	tmp |= BSWPR_MODSEL;
@@ -246,6 +247,7 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 	else
 		tmp |= ((0x7 << index*8));
 	write_reg(ump, tmp, BSWPR);
+#endif
 
 	/* Set alpha value for entire plane, if no alpha data */
 	tmp = read_reg(ump, BBLCR0);
@@ -285,7 +287,7 @@ setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 	tmp = dest->pitch;
 	if (dest->format == V4L2_PIX_FMT_RGB565)
 		tmp *= 2;
-	else if (dest->format == V4L2_PIX_FMT_BGR24)
+	else if (dest->format == V4L2_PIX_FMT_RGB24)
 		tmp *= 3;
 	else if (dest->format == V4L2_PIX_FMT_RGB32)
 		tmp *= 4;
@@ -302,14 +304,15 @@ setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 		fmt_reg = CHRR_YCBCR_422;
 	else if (dest->format == V4L2_PIX_FMT_RGB565)
 		fmt_reg = WPCK_RGB16;
-	else if (dest->format == V4L2_PIX_FMT_BGR24)
-		fmt_reg = WPCK_RGB24; /* Notice the order change */
+	else if (dest->format == V4L2_PIX_FMT_RGB24)
+		fmt_reg = WPCK_RGB24;
 	else if (dest->format == V4L2_PIX_FMT_RGB32)
 		fmt_reg = WPCK_RGB32;
 	else
 		return -1;
 	write_reg(ump, fmt_reg, BPKFR);
 
+#ifdef __LITTLE_ENDIAN__
 	/* byte/word swapping */
 	tmp = read_reg(ump, BSWPR);
 	if (dest->format == V4L2_PIX_FMT_RGB32)
@@ -319,6 +322,7 @@ setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 	else
 		tmp |= 0x70;
 	write_reg(ump, tmp, BSWPR);
+#endif
 
 #ifdef DEBUG
 	fprintf(stderr, "\n");

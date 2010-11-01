@@ -46,6 +46,7 @@
 typedef struct {
 	char * filename;
 	FILE * file;
+	int is_bmp;
 	size_t nread;
 	size_t size;
 	unsigned char *virt;
@@ -62,7 +63,7 @@ usage (const char * progname)
 	printf ("  %s -s vga -i vga.yuv -s qvga -i qvga.rgb -s qcif -i qcif.rgb\n", progname);
 	printf ("\n");
 	printf ("\nInput options\n");
-	printf ("  -c, --input-colorspace (RGB565, RGB888, BGR888, RGBx888, NV12, YCbCr420, NV16, YCbCr422)\n");
+	printf ("  -c, --input-colorspace (RGB565, RGB888, RGBx888, NV12, YCbCr420, NV16, YCbCr422)\n");
 	printf ("                         Specify input colorspace\n");
 	printf ("  -s, --input-size       Set the input image size (qcif, cif, qvga, vga, d1, 720p)\n");
 	printf ("\nControl keys\n");
@@ -79,7 +80,8 @@ usage (const char * progname)
 	printf ("  .422    YCbCr422\n");
 	printf ("  .rgb    RGB565\n");
 	printf ("  .565    RGB565\n");
-	printf ("  .888    BGR888\n");
+	printf ("  .bmp    BGR24 (with 54 byte header - mirrored due to scan line order)\n");
+	printf ("  .888    RGB888\n");
 	printf ("  .x888   RGBx888\n");
 	printf ("\n");
 	printf ("Please report bugs to <linux-sh@vger.kernel.org>\n");
@@ -135,31 +137,37 @@ static const char * show_size (int w, int h)
 struct extensions_t {
 	const char *ext;
 	int fmt;
+	int is_bmp;
 };
 
 static const struct extensions_t exts[] = {
-	{ "RGB565",   V4L2_PIX_FMT_RGB565 },
-	{ "rgb",      V4L2_PIX_FMT_RGB565 },
-	{ "BGR888",   V4L2_PIX_FMT_BGR24 },
-	{ "888",      V4L2_PIX_FMT_BGR24 },
-	{ "RGBx888",  V4L2_PIX_FMT_RGB32 },
-	{ "x888",     V4L2_PIX_FMT_RGB32 },
-	{ "YCbCr420", V4L2_PIX_FMT_NV12 },
-	{ "420",      V4L2_PIX_FMT_NV12 },
-	{ "yuv",      V4L2_PIX_FMT_NV12 },
-	{ "NV12",     V4L2_PIX_FMT_NV12 },
-	{ "YCbCr422", V4L2_PIX_FMT_NV16 },
-	{ "422",      V4L2_PIX_FMT_NV16 },
-	{ "NV16",     V4L2_PIX_FMT_NV16 },
+	{ "RGB565",   V4L2_PIX_FMT_RGB565, 0 },
+	{ "rgb",      V4L2_PIX_FMT_RGB565, 0 },
+	{ "RGB888",   V4L2_PIX_FMT_RGB24, 0 },
+	{ "888",      V4L2_PIX_FMT_RGB24, 0 },
+	{ "BGR24",    V4L2_PIX_FMT_BGR24, 0 },
+	{ "bmp",      V4L2_PIX_FMT_BGR24, 1 },	/* 24-bit BGR, upside down */
+	{ "RGBx888",  V4L2_PIX_FMT_RGB32, 0 },
+	{ "x888",     V4L2_PIX_FMT_RGB32, 0 },
+	{ "YCbCr420", V4L2_PIX_FMT_NV12, 0 },
+	{ "420",      V4L2_PIX_FMT_NV12, 0 },
+	{ "yuv",      V4L2_PIX_FMT_NV12, 0 },
+	{ "NV12",     V4L2_PIX_FMT_NV12, 0 },
+	{ "YCbCr422", V4L2_PIX_FMT_NV16, 0 },
+	{ "422",      V4L2_PIX_FMT_NV16, 0 },
+	{ "NV16",     V4L2_PIX_FMT_NV16, 0 },
 };
 
-static int set_colorspace (char * arg, int * c)
+static int set_colorspace (char * arg, int * c, int * is_bmp)
 {
 	int nr_exts = sizeof(exts) / sizeof(exts[0]);
 	int i;
 
 	if (!arg)
 		return -1;
+
+	if (!strncasecmp (arg, "bmp", 3))
+		*is_bmp = 1;
 
 	for (i=0; i<nr_exts; i++) {
 		if (!strncasecmp (arg, exts[i].ext, strlen(exts[i].ext))) {
@@ -229,7 +237,7 @@ static off_t imgsize (int colorspace, int w, int h)
 	return (off_t)(w*h*n/d);
 }
 
-static int guess_colorspace (char * filename, int * c)
+static int guess_colorspace (char * filename, int * c, int * is_bmp)
 {
 	char * ext;
 
@@ -243,7 +251,7 @@ static int guess_colorspace (char * filename, int * c)
 	ext = strrchr (filename, '.');
 	if (ext == NULL) return -1;
 
-	return set_colorspace(ext+1, c);
+	return set_colorspace(ext+1, c, is_bmp);
 }
 
 static int guess_size (char * filename, int colorspace, int * w, int * h)
@@ -433,6 +441,10 @@ int read_image_from_file(surface_t *s)
 	int run = 1;
 
 	if (s->filename) {
+		/* Basic bmp support - skip header */
+		if (s->is_bmp)
+			fread (s->virt, 1, 54, s->file);
+
 		/* Read input */
 		if ((s->nread = fread (s->virt, 1, s->size, s->file)) != s->size) {
 			if (s->nread == 0 && feof (s->file)) {
@@ -512,7 +524,7 @@ int main (int argc, char * argv[])
 			show_version = 1;
 			break;
 		case 'c': /* input colorspace */
-			set_colorspace (optarg, &current->surface.format);
+			set_colorspace (optarg, &current->surface.format, &current->is_bmp);
 			break;
 		case 's': /* input size */
 			set_size (optarg, &current->surface.width, &current->surface.height);
@@ -569,7 +581,7 @@ int main (int argc, char * argv[])
 
 		printf ("[%d] Input file:      \t%s\n", i, current->filename);
 
-		guess_colorspace (current->filename, &current->surface.format);
+		guess_colorspace (current->filename, &current->surface.format, &current->is_bmp);
 		guess_size (current->filename, current->surface.format, &current->surface.width, &current->surface.height);
 
 		/* Check that all parameters are set */
