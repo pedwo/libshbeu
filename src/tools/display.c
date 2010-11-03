@@ -12,7 +12,6 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <linux/fb.h>
-#include <linux/videodev2.h>	/* For pixel formats */
 
 #include "display.h"
 
@@ -106,11 +105,6 @@ void display_close(DISPLAY *disp)
 
 	close(disp->fb_handle);
 	free(disp);
-}
-
-int display_get_format(DISPLAY *disp)
-{
-	return V4L2_PIX_FMT_RGB565;
 }
 
 int display_get_width(DISPLAY *disp)

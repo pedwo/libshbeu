@@ -6,8 +6,6 @@
 #ifndef  DISPLAY_H
 #define  DISPLAY_H
 
-#include <linux/videodev2.h>	/* For pixel formats */
-
 /**
  * An opaque handle to the display.
  */
@@ -26,12 +24,6 @@ DISPLAY *display_open(void);
  * \param disp Handle returned from display_open
  */
 void display_close(DISPLAY *disp);
-
-/**
- * Get the v4l2 format of the display
- * \param disp Handle returned from display_open
- */
-int display_get_format(DISPLAY *disp);
 
 /**
  * Get the width of the display in pixels
