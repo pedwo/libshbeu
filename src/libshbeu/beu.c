@@ -156,7 +156,7 @@ static int different_colorspace(int fmt1, int fmt2)
 
 /* Setup input surface */
 static int
-setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
+setup_src_surface(struct uio_map *ump, int index, const beu_surface_t *surface)
 {
 	const int offsets[] = {SRC1_BASE, SRC2_BASE, SRC3_BASE};
 	int offset = offsets[index];
@@ -264,7 +264,7 @@ setup_src_surface(struct uio_map *ump, int index, beu_surface_t *surface)
 /* The dest size is defined by input surface 1. The output can be on a larger
    canvas by setting the pitch */
 static int
-setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
+setup_dst_surface(struct uio_map *ump, const beu_surface_t *dest)
 {
 	unsigned long tmp;
 	unsigned long fmt_reg;
@@ -334,15 +334,15 @@ setup_dst_surface(struct uio_map *ump, beu_surface_t *dest)
 int
 shbeu_start_blend(
 	SHBEU *pvt,
-	beu_surface_t *src1,
-	beu_surface_t *src2,
-	beu_surface_t *src3,
-	beu_surface_t *dest)
+	const beu_surface_t *src1,
+	const beu_surface_t *src2,
+	const beu_surface_t *src3,
+	const beu_surface_t *dest)
 {
 	struct uio_map *ump = &pvt->uio_mmio;
 	unsigned long start_reg;
 	unsigned long control_reg;
-	beu_surface_t *src_check = src1;
+	const beu_surface_t *src_check = src1;
 	unsigned long bblcr1 = 0;
 	unsigned long bblcr0 = 0;
 
@@ -362,14 +362,14 @@ shbeu_start_blend(
 		if (different_colorspace(src2->format, src3->format)) {
 			if (different_colorspace(src1->format, src2->format)) {
 				/* src2 is the odd one out, swap 1 and 2 */
-				beu_surface_t *tmp = src2;
+				const beu_surface_t *tmp = src2;
 				src2 = src1;
 				src1 = tmp;
 				bblcr1 = (1 << 24);
 				bblcr0 = (2 << 24);
 			} else {
 				/* src3 is the odd one out, swap 1 and 3 */
-				beu_surface_t *tmp = src3;
+				const beu_surface_t *tmp = src3;
 				src3 = src1;
 				src1 = tmp;
 				bblcr1 = (2 << 24);
@@ -494,10 +494,10 @@ shbeu_wait(SHBEU *pvt)
 int
 shbeu_blend(
 	SHBEU *pvt,
-	beu_surface_t *src1,
-	beu_surface_t *src2,
-	beu_surface_t *src3,
-	beu_surface_t *dest)
+	const beu_surface_t *src1,
+	const beu_surface_t *src2,
+	const beu_surface_t *src3,
+	const beu_surface_t *dest)
 {
 	int ret = 0;
 

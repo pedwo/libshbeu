@@ -151,10 +151,10 @@ void shbeu_close(SHBEU *beu);
 int
 shbeu_start_blend(
 	SHBEU *beu,
-	beu_surface_t *src1,
-	beu_surface_t *src2,
-	beu_surface_t *src3,
-	beu_surface_t *dest);
+	const beu_surface_t *src1,
+	const beu_surface_t *src2,
+	const beu_surface_t *src3,
+	const beu_surface_t *dest);
 
 /** Wait for a BEU operation to complete. The operation is started by a call to shbeu_start_blend.
  * \param beu BEU handle
@@ -168,10 +168,10 @@ shbeu_wait(SHBEU *beu);
 int
 shbeu_blend(
 	SHBEU *beu,
-	beu_surface_t *src1,
-	beu_surface_t *src2,
-	beu_surface_t *src3,
-	beu_surface_t *dest);
+	const beu_surface_t *src1,
+	const beu_surface_t *src2,
+	const beu_surface_t *src3,
+	const beu_surface_t *dest);
 
 #ifdef __cplusplus
 }
