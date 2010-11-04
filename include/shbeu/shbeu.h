@@ -17,6 +17,94 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
 
+/* Common information for SH video buffers */
+#ifndef __SH_VIDEO_BUFFER_H__
+#define __SH_VIDEO_BUFFER_H__
+
+/** Surface formats */
+typedef enum {
+	SH_UNKNOWN,
+	SH_NV12,    /**< YUV420: Y plane, packed CbCr plane, optional alpha plane */
+	SH_NV16,    /**< YUV422: Y plane, packed CbCr plane, optional alpha plane */
+	SH_RGB565,  /**< Packed RGB565 */
+	SH_RGB24,   /**< Packed RGB888 */
+	SH_BGR24,   /**< Packed BGR888 */
+	SH_RGB32,   /**< Packed XRGB8888 (most significant byte ignored) */
+	SH_ARGB32,  /**< Packed ARGB8888 */
+} sh_vid_format_t;
+
+
+/** Bounding rectange */
+struct sh_vid_rect {
+	int x;      /**< Offset from left in pixels */
+	int y;      /**< Offset from top in pixels */
+	int w;      /**< Width of surface in pixels */
+	int h;      /**< Height of surface in pixels */
+};
+
+/** Surface */
+struct sh_vid_surface {
+	sh_vid_format_t format; /**< Surface format */
+	int w;      /**< Width of surface in pixels */
+	int h;      /**< Height of surface in pixels */
+	void *py;   /**< Address of Y or RGB plane */
+	void *pc;   /**< Address of CbCr plane (ignored for RGB) */
+	void *pa;   /**< Address of Alpha plane */
+};
+
+struct format_info {
+	sh_vid_format_t fmt;
+	int y_bpp;
+	int c_bpp_n;	/* numerator */
+	int c_bpp_d;	/* denominator */
+};
+
+static const struct format_info fmts[] = {
+	{ SH_UNKNOWN, 0, 0, 1 },
+	{ SH_NV12,    1, 1, 2 },
+	{ SH_NV16,    1, 1, 1 },
+	{ SH_RGB565,  2, 0, 1 },
+	{ SH_RGB24,   3, 0, 1 },
+	{ SH_BGR24,   3, 0, 1 },
+	{ SH_RGB32,   4, 0, 1 },
+	{ SH_ARGB32,  4, 0, 1 },
+};
+
+static inline int is_ycbcr(sh_vid_format_t fmt)
+{
+	if (fmt >= SH_NV12 && fmt <= SH_NV16)
+		return 1;
+	return 0;
+}
+
+static inline int is_rgb(sh_vid_format_t fmt)
+{
+	if (fmt >= SH_RGB565 && fmt <= SH_ARGB32)
+		return 1;
+	return 0;
+}
+
+static inline int different_colorspace(sh_vid_format_t fmt1, sh_vid_format_t fmt2)
+{
+	if ((is_rgb(fmt1) && is_ycbcr(fmt2))
+	    || (is_ycbcr(fmt1) && is_rgb(fmt2)))
+		return 1;
+	return 0;
+}
+
+static inline int size_y(sh_vid_format_t fmt, int nr_pixels)
+{
+	return (fmts[fmt].y_bpp * nr_pixels);
+}
+
+static inline int size_c(sh_vid_format_t fmt, int nr_pixels)
+{
+	return (fmts[fmt].c_bpp_n * nr_pixels) / fmts[fmt].c_bpp_d;
+}
+
+#endif /* __SH_VIDEO_BUFFER_H__ */
+
+
 #ifndef __SHBEU_H__
 #define __SHBEU_H__
 
@@ -102,7 +190,6 @@ extern "C" {
  * The libshbeu C API.
  *
  */
-#include <linux/videodev2.h>	/* For pixel formats */
 
 /**
  * An opaque handle to the BEU.
@@ -113,7 +200,7 @@ typedef struct SHBEU SHBEU;
 /**
  * Surface specification.
  */
-typedef struct {
+struct shbeu_surface {
 	unsigned long py;   /**< Physical address of Y or RGB plane */
 	unsigned long pc;   /**< Physical address of CbCr plane (ignored for RGB) */
 	unsigned long pa;   /**< Physical address of alpha plane (ignored for RGB or destination surface) */
@@ -123,8 +210,8 @@ typedef struct {
 	int pitch;          /**< Line pitch in pixels */
 	int x;              /**< Overlay position (horizontal) (ignored for destination surface) */
 	int y;              /**< Overlay position (vertical) (ignored for destination surface) */
-	int format;         /**< Format (V4L2_PIX_FMT_NV12, V4L2_PIX_FMT_NV16, V4L2_PIX_FMT_RGB565, V4L2_PIX_FMT_RGB32) */
-} beu_surface_t;
+	sh_vid_format_t format; /**< Format */
+};
 
 
 /**
@@ -151,10 +238,10 @@ void shbeu_close(SHBEU *beu);
 int
 shbeu_start_blend(
 	SHBEU *beu,
-	const beu_surface_t *src1,
-	const beu_surface_t *src2,
-	const beu_surface_t *src3,
-	const beu_surface_t *dest);
+	const struct shbeu_surface *src1,
+	const struct shbeu_surface *src2,
+	const struct shbeu_surface *src3,
+	const struct shbeu_surface *dest);
 
 /** Wait for a BEU operation to complete. The operation is started by a call to shbeu_start_blend.
  * \param beu BEU handle
@@ -168,10 +255,10 @@ shbeu_wait(SHBEU *beu);
 int
 shbeu_blend(
 	SHBEU *beu,
-	const beu_surface_t *src1,
-	const beu_surface_t *src2,
-	const beu_surface_t *src3,
-	const beu_surface_t *dest);
+	const struct shbeu_surface *src1,
+	const struct shbeu_surface *src2,
+	const struct shbeu_surface *src3,
+	const struct shbeu_surface *dest);
 
 #ifdef __cplusplus
 }

@@ -127,8 +127,7 @@
 /* BSIFRx */
 #define CHRR_YCBCR_422   (1 << 8)
 #define CHRR_YCBCR_420   (2 << 8)
-#define CHRR_aYCBCR_422  (4 << 8)
-#define CHRR_aYCBCR_420  (5 << 8)
+#define CHRR_YCBCR_ALPHA (3 << 8)
 #define RPKF_RGB32       0
 #define RPKF_RGB24       2
 #define RPKF_BGR24       11

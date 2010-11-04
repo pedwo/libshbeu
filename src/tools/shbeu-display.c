@@ -50,7 +50,7 @@ typedef struct {
 	size_t nread;
 	size_t size;
 	unsigned char *virt;
-	beu_surface_t surface;
+	struct shbeu_surface surface;
 } surface_t;
 
 
@@ -136,29 +136,29 @@ static const char * show_size (int w, int h)
 
 struct extensions_t {
 	const char *ext;
-	int fmt;
+	sh_vid_format_t fmt;
 	int is_bmp;
 };
 
 static const struct extensions_t exts[] = {
-	{ "RGB565",   V4L2_PIX_FMT_RGB565, 0 },
-	{ "rgb",      V4L2_PIX_FMT_RGB565, 0 },
-	{ "RGB888",   V4L2_PIX_FMT_RGB24, 0 },
-	{ "888",      V4L2_PIX_FMT_RGB24, 0 },
-	{ "BGR24",    V4L2_PIX_FMT_BGR24, 0 },
-	{ "bmp",      V4L2_PIX_FMT_BGR24, 1 },	/* 24-bit BGR, upside down */
-	{ "RGBx888",  V4L2_PIX_FMT_RGB32, 0 },
-	{ "x888",     V4L2_PIX_FMT_RGB32, 0 },
-	{ "YCbCr420", V4L2_PIX_FMT_NV12, 0 },
-	{ "420",      V4L2_PIX_FMT_NV12, 0 },
-	{ "yuv",      V4L2_PIX_FMT_NV12, 0 },
-	{ "NV12",     V4L2_PIX_FMT_NV12, 0 },
-	{ "YCbCr422", V4L2_PIX_FMT_NV16, 0 },
-	{ "422",      V4L2_PIX_FMT_NV16, 0 },
-	{ "NV16",     V4L2_PIX_FMT_NV16, 0 },
+	{ "RGB565",   SH_RGB565, 0 },
+	{ "rgb",      SH_RGB565, 0 },
+	{ "RGB888",   SH_RGB24, 0 },
+	{ "888",      SH_RGB24, 0 },
+	{ "BGR24",    SH_BGR24, 0 },
+	{ "bmp",      SH_BGR24, 1 },	/* 24-bit BGR, upside down */
+	{ "RGBx888",  SH_RGB32, 0 },
+	{ "x888",     SH_RGB32, 0 },
+	{ "YCbCr420", SH_NV12, 0 },
+	{ "420",      SH_NV12, 0 },
+	{ "yuv",      SH_NV12, 0 },
+	{ "NV12",     SH_NV12, 0 },
+	{ "YCbCr422", SH_NV16, 0 },
+	{ "422",      SH_NV16, 0 },
+	{ "NV16",     SH_NV16, 0 },
 };
 
-static int set_colorspace (char * arg, int * c, int * is_bmp)
+static int set_colorspace (char * arg, sh_vid_format_t * c, int * is_bmp)
 {
 	int nr_exts = sizeof(exts) / sizeof(exts[0]);
 	int i;
@@ -179,7 +179,7 @@ static int set_colorspace (char * arg, int * c, int * is_bmp)
 	return -1;
 }
 
-static const char * show_colorspace (int c)
+static const char * show_colorspace (sh_vid_format_t c)
 {
 	int nr_exts = sizeof(exts) / sizeof(exts[0]);
 	int i;
@@ -207,37 +207,12 @@ static off_t filesize (char * filename)
 	return statbuf.st_size;
 }
 
-static off_t imgsize (int colorspace, int w, int h)
+static off_t imgsize (sh_vid_format_t colorspace, int w, int h)
 {
-	int n=0, d=1;
-
-	switch (colorspace) {
-	case V4L2_PIX_FMT_RGB32:
-		/* 4 bytes per pixel */
-		n=4; d=1;
-		break;
-	case V4L2_PIX_FMT_RGB24:
-	case V4L2_PIX_FMT_BGR24:
-		/* 3 bytes per pixel */
-		n=3; d=1;
-		break;
-	case V4L2_PIX_FMT_RGB565:
-	case V4L2_PIX_FMT_NV16:
-		/* 2 bytes per pixel */
-		n=2; d=1;
-		break;
-	case V4L2_PIX_FMT_NV12:
-		/* 3/2 bytes per pixel */
-		n=3; d=2;
-		break;
-	default:
-		return -1;
-	}
-
-	return (off_t)(w*h*n/d);
+	return (off_t)(size_y(colorspace, w*h) + size_c(colorspace, w*h));
 }
 
-static int guess_colorspace (char * filename, int * c, int * is_bmp)
+static int guess_colorspace (char * filename, sh_vid_format_t * c, int * is_bmp)
 {
 	char * ext;
 
@@ -246,7 +221,7 @@ static int guess_colorspace (char * filename, int * c, int * is_bmp)
 
 	/* If the colorspace is already set (eg. explicitly by user args)
 	 * then don't try to guess */
-	if (*c != -1) return -1;
+	if (*c != SH_UNKNOWN) return -1;
 
 	ext = strrchr (filename, '.');
 	if (ext == NULL) return -1;
@@ -321,14 +296,14 @@ static long time_total_us = 0;
 static void blend(
 	SHBEU *beu,
 	DISPLAY *display,
-	beu_surface_t **sources,
+	struct shbeu_surface **sources,
 	int nr_inputs)
 {
 	unsigned char *bb_virt = display_get_back_buff_virt(display);
 	unsigned long  bb_phys = display_get_back_buff_phys(display);
 	int lcd_w = display_get_width(display);
 	int lcd_h = display_get_height(display);
-	beu_surface_t dst;
+	struct shbeu_surface dst;
 	int i;
 	struct timespec start;
 
@@ -338,7 +313,7 @@ static void blend(
 	/* Destination surface info */
 	dst.py = bb_phys;
 	dst.pitch = lcd_w;
-	dst.format = V4L2_PIX_FMT_RGB565;
+	dst.format = SH_RGB565;
 
 	/* Limit the size of the images used in blend to the LCD */
 	for (i=0; i<nr_inputs; i++) {
@@ -398,8 +373,8 @@ void create_per_pixel_alpha(UIOMux *uiomux, surface_t *s)
 	int y, alpha = 255;
 	unsigned char *pA;
 
-	if ((s->surface.format != V4L2_PIX_FMT_NV12)
-	    && (s->surface.format != V4L2_PIX_FMT_NV16))
+	if ((s->surface.format != SH_NV12)
+	    && (s->surface.format != SH_NV16))
 		return;
 
 	/* Create alpha plane */
@@ -420,7 +395,7 @@ void set_per_pixel_alpha_argb(UIOMux *uiomux, surface_t *s)
 	uint32_t *pARGB;
 	uint32_t argb;
 
-	if (s->surface.format != V4L2_PIX_FMT_RGB32)
+	if (s->surface.format != SH_RGB32)
 		return;
 
 	s->surface.pa = s->surface.py;
@@ -436,14 +411,49 @@ void set_per_pixel_alpha_argb(UIOMux *uiomux, surface_t *s)
 	}
 }
 
+struct bmpfile_magic {
+  unsigned char magic[2];
+};
+ 
+struct bmpfile_header {
+  uint32_t filesz;
+  uint16_t creator1;
+  uint16_t creator2;
+  uint32_t bmp_offset;
+};
+
+struct bmp_dib_v3_header {
+  uint32_t header_sz;
+  int32_t width;
+  int32_t height;
+  uint16_t nplanes;
+  uint16_t bitspp;
+  uint32_t compress_type;
+  uint32_t bmp_bytesz;
+  int32_t hres;
+  int32_t vres;
+  uint32_t ncolors;
+  uint32_t nimpcolors;
+};
+
 int read_image_from_file(surface_t *s)
 {
 	int run = 1;
+	struct bmpfile_magic magic;
+	struct bmpfile_header header;
+	struct bmp_dib_v3_header dib;
 
 	if (s->filename) {
 		/* Basic bmp support - skip header */
-		if (s->is_bmp)
-			fread (s->virt, 1, 54, s->file);
+		if (s->is_bmp && s->nread==0) {
+			fread (&magic, 1, sizeof(struct bmpfile_magic), s->file);
+			fread (&header, 1, sizeof(struct bmpfile_header), s->file);
+			fread (&dib, 1, sizeof(struct bmp_dib_v3_header), s->file);
+			s->size = (dib.width * dib.height * dib.bitspp) / 4;
+			s->surface.width = dib.width;
+			s->surface.height = dib.height;
+			s->surface.format = (dib.bitspp == 32) ? SH_ARGB32 : SH_BGR24;
+		}
 
 		/* Read input */
 		if ((s->nread = fread (s->virt, 1, s->size, s->file)) != s->size) {
@@ -464,7 +474,7 @@ int main (int argc, char * argv[])
 	SHBEU *beu = NULL;
 	DISPLAY *display = NULL;
 	surface_t in[3];
-	beu_surface_t *beu_inputs[3];
+	struct shbeu_surface *beu_inputs[3];
 	surface_t *current;
 	int i, nr_inputs = 0;
 	int ret;
@@ -497,7 +507,7 @@ int main (int argc, char * argv[])
 		current = &in[i];
 		current->surface.width = -1;
 		current->surface.height = -1;
-		current->surface.format = -1;
+		current->surface.format = SH_UNKNOWN;
 		beu_inputs[i] = &in[i].surface;
 	}
 	current = &in[nr_inputs];
@@ -585,7 +595,7 @@ int main (int argc, char * argv[])
 		guess_size (current->filename, current->surface.format, &current->surface.width, &current->surface.height);
 
 		/* Check that all parameters are set */
-		if (current->surface.format == -1) {
+		if (current->surface.format == SH_UNKNOWN) {
 			fprintf (stderr, "ERROR: Input colorspace unspecified\n");
 			error = 1;
 		}
@@ -683,7 +693,7 @@ int main (int argc, char * argv[])
 	uiomux_close (uiomux);
 
 	us = time_total_us/nr_blends;
-	printf("Average time for blend is %luus (%d pixel/us)\n", us, (in[0].surface.width * in[0].surface.height)/us);
+	printf("Average time for blend is %luus (%ld pixel/us)\n", us, (in[0].surface.width * in[0].surface.height)/us);
 
 exit_ok:
 	exit (0);
