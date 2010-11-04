@@ -12,7 +12,7 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <linux/fb.h>
-
+#include <uiomux/uiomux.h>
 #include "display.h"
 
 #ifndef FBIO_WAITFORVSYNC
@@ -84,6 +84,8 @@ DISPLAY *display_open(void)
 	if (disp->iomem != MAP_FAILED) {
 		memset(disp->iomem, 0, size);
 	}
+
+	uiomux_register (disp->iomem, disp->fb_fix.smem_start, size);
 
 	disp->lcd_w = disp->fb_var.xres;
 	disp->lcd_h = disp->fb_var.yres;

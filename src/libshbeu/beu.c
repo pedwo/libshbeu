@@ -171,6 +171,7 @@ setup_src_surface(struct uio_map *ump, int index, const struct shbeu_surface *su
 	int offset = offsets[index];
 	unsigned long tmp;
 	const struct beu_format_info *info;
+	unsigned long Y, C, A;
 
 	/* Not having an overlay surface is valid */
 	if (!surface)
@@ -180,14 +181,18 @@ setup_src_surface(struct uio_map *ump, int index, const struct shbeu_surface *su
 	if (!info)
 		return -1;
 
+	Y = uiomux_all_virt_to_phys(surface->py);
+	C = uiomux_all_virt_to_phys(surface->pc);
+	A = uiomux_all_virt_to_phys(surface->pa);
+
 #ifdef DEBUG
 	fprintf(stderr, "\nsrc%d: fmt=%d: width=%lu, height=%lu pitch=%lu\n",
 		index+1, surface->format, surface->width, surface->height, surface->pitch);
-	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX), alpha (0x%lX)\n", surface->py, surface->pc, surface->pa);
+	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX), alpha (0x%lX)\n", Y, C, A);
 	fprintf(stderr, "\toffset=(%lu,%lu), alternative alpha =%lu\n", surface->x, surface->y, surface->alpha);
 #endif
 
-	if (!surface->py)
+	if (!Y)
 		return -1;
 
 	if ((surface->width % 4) || (surface->pitch % 4) || (surface->height % 4))
@@ -204,9 +209,9 @@ setup_src_surface(struct uio_map *ump, int index, const struct shbeu_surface *su
 	write_reg(ump, tmp, BSMWR + offset);
 
 	write_reg(ump, (surface->height << 16) | surface->width, BSSZR + offset);
-	write_reg(ump, surface->py, BSAYR + offset);
-	write_reg(ump, surface->pc, BSACR + offset);
-	write_reg(ump, surface->pa, BSAAR + offset);
+	write_reg(ump, Y, BSAYR + offset);
+	write_reg(ump, C, BSACR + offset);
+	write_reg(ump, A, BSAAR + offset);
 
 	/* Surface format */
 	tmp = info->bpXfr;
@@ -245,6 +250,7 @@ setup_dst_surface(struct uio_map *ump, const struct shbeu_surface *dest)
 {
 	unsigned long tmp;
 	const struct beu_format_info *info;
+	unsigned long Y, C;
 
 	if (!dest)
 		return -1;
@@ -253,9 +259,12 @@ setup_dst_surface(struct uio_map *ump, const struct shbeu_surface *dest)
 	if (!info)
 		return -1;
 
+	Y = uiomux_all_virt_to_phys(dest->py);
+	C = uiomux_all_virt_to_phys(dest->pc);
+
 #ifdef DEBUG
 	fprintf(stderr, "\ndest: fmt=%d: pitch=%lu\n", dest->format, dest->pitch);
-	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX)\n", dest->py, dest->pc);
+	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX)\n", Y, C);
 #endif
 
 	if (!dest->py)
@@ -268,8 +277,8 @@ setup_dst_surface(struct uio_map *ump, const struct shbeu_surface *dest)
 	tmp = size_y(dest->format, dest->pitch);
 	write_reg(ump, tmp, BDMWR);
 
-	write_reg(ump, dest->py, BDAYR);
-	write_reg(ump, dest->pc, BDACR);
+	write_reg(ump, Y, BDAYR);
+	write_reg(ump, C, BDACR);
 	write_reg(ump, 0, BAFXR);
 
 	/* Surface format */

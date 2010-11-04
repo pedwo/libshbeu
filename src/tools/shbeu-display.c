@@ -32,6 +32,7 @@
 #include "shbeu/shbeu.h"
 #include "display.h"
 
+/* Only enable this if you are testing with a YCbCr overlay */
 //#define TEST_PER_PIXEL_ALPHA
 
 /* RGB565 colors */
@@ -300,7 +301,6 @@ static void blend(
 	int nr_inputs)
 {
 	unsigned char *bb_virt = display_get_back_buff_virt(display);
-	unsigned long  bb_phys = display_get_back_buff_phys(display);
 	int lcd_w = display_get_width(display);
 	int lcd_h = display_get_height(display);
 	struct shbeu_surface dst;
@@ -311,7 +311,7 @@ static void blend(
 	draw_rect_rgb565(bb_virt, BLACK, 0, 0, lcd_w, lcd_h, lcd_w);
 
 	/* Destination surface info */
-	dst.py = bb_phys;
+	dst.py = bb_virt;
 	dst.pitch = lcd_w;
 	dst.format = SH_RGB565;
 
@@ -358,7 +358,7 @@ int setup_input_surface(char *progname, UIOMux *uiomux, int i, surface_t *s)
 		return -1;
 	}
 	s->surface.pitch = s->surface.width;
-	s->surface.py = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, s->virt);
+	s->surface.py = s->virt;;
 	s->surface.pc = s->surface.py + (s->surface.width * s->surface.height);
 	s->surface.pa = 0;
 	s->surface.alpha = 255 - i*70;	/* 1st layer opaque, others semi-transparent */
@@ -385,7 +385,7 @@ void create_per_pixel_alpha(UIOMux *uiomux, surface_t *s)
 			memset(pA+y*s->surface.width, alpha, s->surface.width);
 		}
 	}
-	s->surface.pa = uiomux_virt_to_phys (uiomux, UIOMUX_SH_BEU, pA);
+	s->surface.pa = pA;
 }
 
 /* Generate some alpha values for packed ARGB8888 */
@@ -399,7 +399,7 @@ void set_per_pixel_alpha_argb(UIOMux *uiomux, surface_t *s)
 		return;
 
 	s->surface.pa = s->surface.py;
-	pARGB = uiomux_phys_to_virt (uiomux, UIOMUX_SH_BEU, s->surface.pa);
+	pARGB = s->surface.pa;
 
 	for (x=0; x<s->surface.width; x++) {
 		for (y=0; y<s->surface.height; y++) {
