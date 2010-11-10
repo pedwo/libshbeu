@@ -53,10 +53,10 @@ struct sh_vid_surface {
 };
 
 struct format_info {
-	sh_vid_format_t fmt;
-	int y_bpp;
-	int c_bpp_n;	/* numerator */
-	int c_bpp_d;	/* denominator */
+	sh_vid_format_t fmt;    /**< surface format */
+	int y_bpp;      /**< Luma numerator */
+	int c_bpp_n;    /**< Chroma numerator */
+	int c_bpp_d;    /**< Chroma denominator */
 };
 
 static const struct format_info fmts[] = {
@@ -92,12 +92,12 @@ static inline int different_colorspace(sh_vid_format_t fmt1, sh_vid_format_t fmt
 	return 0;
 }
 
-static inline int size_y(sh_vid_format_t fmt, int nr_pixels)
+static inline size_t size_y(sh_vid_format_t fmt, int nr_pixels)
 {
 	return (fmts[fmt].y_bpp * nr_pixels);
 }
 
-static inline int size_c(sh_vid_format_t fmt, int nr_pixels)
+static inline size_t size_c(sh_vid_format_t fmt, int nr_pixels)
 {
 	return (fmts[fmt].c_bpp_n * nr_pixels) / fmts[fmt].c_bpp_d;
 }

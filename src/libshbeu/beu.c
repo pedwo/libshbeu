@@ -21,6 +21,7 @@
 #include "config.h"
 #endif
 
+#include <string.h>
 #include <stdio.h>
 #include <errno.h>
 
@@ -35,6 +36,17 @@
 #else
 #define debug_info(s)
 #endif
+
+struct phys_buf {
+	void *virt;
+	size_t len;
+};
+
+struct beu_allocated_bufs {
+	struct phys_buf Y;
+	struct phys_buf C;
+	struct phys_buf A;
+};
 
 struct beu_format_info {
 	sh_vid_format_t fmt;
@@ -70,6 +82,8 @@ struct uio_map {
 struct SHBEU {
 	UIOMux *uiomux;
 	struct uio_map uio_mmio;
+	struct beu_allocated_bufs src[3];
+	struct beu_allocated_bufs dest;
 };
 
 
@@ -95,6 +109,40 @@ static const struct beu_format_info *dst_fmt_info(sh_vid_format_t format)
 			return &beu_dst_fmts[i];
 	}
 	return NULL;
+}
+
+/* Tests a virtual buffer to see if it can be used with the HW (i.e. physically contiguous)
+ and if not, allocate a new buffer that can be used and optionally copy the data over */
+static int into_physical_buf(SHBEU *beu, void *virt, size_t len, unsigned long *phys, struct phys_buf *new_buf, int copy)
+{
+	int ret=0;
+	*phys = 0;
+	if (virt) {
+		*phys = uiomux_all_virt_to_phys(virt);
+		if (!*phys) {
+			/* Supplied buffer is not usable by BEU! */
+			new_buf->virt = uiomux_malloc(beu->uiomux, UIOMUX_SH_BEU, len, 32);
+			if (!new_buf->virt) {
+				return -1;
+			}
+			new_buf->len = len;
+			*phys = uiomux_all_virt_to_phys(new_buf->virt);
+			if (copy) {
+				memcpy(new_buf->virt, virt, len);
+			}
+		}
+	}
+	return ret;
+}
+
+static void free_temp_buf(SHBEU *beu, struct beu_allocated_bufs *buf)
+{
+	if (buf->Y.virt)
+		uiomux_free(beu->uiomux, UIOMUX_SH_BEU, buf->Y.virt, buf->Y.len);
+	if (buf->C.virt)
+		uiomux_free(beu->uiomux, UIOMUX_SH_BEU, buf->C.virt, buf->C.len);
+	if (buf->A.virt)
+		uiomux_free(beu->uiomux, UIOMUX_SH_BEU, buf->A.virt, buf->A.len);
 }
 
 
@@ -147,6 +195,19 @@ SHBEU *shbeu_open(void)
 	fprintf(stderr, "BEU registers start at 0x%lX (virt: %p)\n", beu->uio_mmio.address, beu->uio_mmio.iomem);
 #endif
 
+	beu->src[0].Y.virt = 0;
+	beu->src[0].C.virt = 0;
+	beu->src[0].A.virt = 0;
+	beu->src[1].Y.virt = 0;
+	beu->src[1].C.virt = 0;
+	beu->src[1].A.virt = 0;
+	beu->src[2].Y.virt = 0;
+	beu->src[2].C.virt = 0;
+	beu->src[2].A.virt = 0;
+	beu->dest.Y.virt = 0;
+	beu->dest.C.virt = 0;
+	beu->dest.A.virt = 0;
+
 	return beu;
 
 err:
@@ -165,7 +226,7 @@ void shbeu_close(SHBEU *pvt)
 
 /* Setup input surface */
 static int
-setup_src_surface(struct uio_map *ump, int index, const struct shbeu_surface *surface)
+setup_src_surface(SHBEU *beu, struct uio_map *ump, int index, const struct shbeu_surface *surface)
 {
 	const int offsets[] = {SRC1_BASE, SRC2_BASE, SRC3_BASE};
 	int offset = offsets[index];
@@ -181,9 +242,13 @@ setup_src_surface(struct uio_map *ump, int index, const struct shbeu_surface *su
 	if (!info)
 		return -1;
 
-	Y = uiomux_all_virt_to_phys(surface->py);
-	C = uiomux_all_virt_to_phys(surface->pc);
-	A = uiomux_all_virt_to_phys(surface->pa);
+	/* if supplied buffers are not usable by the BEU, copy them to ones that are */
+	if (into_physical_buf(beu, surface->py, size_y(surface->format, surface->height * surface->pitch), &Y, &beu->src[index].Y, 1) < 0)
+		return -1;
+	if (into_physical_buf(beu, surface->pc, size_c(surface->format, surface->height * surface->pitch), &C, &beu->src[index].C, 1) < 0)
+		return -1;
+	if (into_physical_buf(beu, surface->pa, surface->height * surface->pitch,        &A, &beu->src[index].A, 1) < 0)
+		return -1;
 
 #ifdef DEBUG
 	fprintf(stderr, "\nsrc%d: fmt=%d: width=%lu, height=%lu pitch=%lu\n",
@@ -246,7 +311,7 @@ setup_src_surface(struct uio_map *ump, int index, const struct shbeu_surface *su
 /* The dest size is defined by input surface 1. The output can be on a larger
    canvas by setting the pitch */
 static int
-setup_dst_surface(struct uio_map *ump, const struct shbeu_surface *dest)
+setup_dst_surface(SHBEU *beu, struct uio_map *ump, const struct shbeu_surface *dest)
 {
 	unsigned long tmp;
 	const struct beu_format_info *info;
@@ -259,8 +324,11 @@ setup_dst_surface(struct uio_map *ump, const struct shbeu_surface *dest)
 	if (!info)
 		return -1;
 
-	Y = uiomux_all_virt_to_phys(dest->py);
-	C = uiomux_all_virt_to_phys(dest->pc);
+	/* if supplied buffer(s) are not usable by the BEU, allocate ones that are */
+	if (into_physical_buf(beu, dest->py, size_y(dest->format, dest->height * dest->pitch), &Y, &beu->dest.Y, 0) < 0)
+		return -1;
+	if (into_physical_buf(beu, dest->pc, size_c(dest->format, dest->height * dest->pitch), &C, &beu->dest.C, 0) < 0)
+		return -1;
 
 #ifdef DEBUG
 	fprintf(stderr, "\ndest: fmt=%d: pitch=%lu\n", dest->format, dest->pitch);
@@ -379,13 +447,13 @@ shbeu_start_blend(
 	/* Set surface order */
 	write_reg(ump, bblcr0, BBLCR0);
 
-	if (setup_src_surface(ump, 0, src1) < 0)
+	if (setup_src_surface(pvt, ump, 0, src1) < 0)
 		goto err;
-	if (setup_src_surface(ump, 1, src2) < 0)
+	if (setup_src_surface(pvt, ump, 1, src2) < 0)
 		goto err;
-	if (setup_src_surface(ump, 2, src3) < 0)
+	if (setup_src_surface(pvt, ump, 2, src3) < 0)
 		goto err;
-	if (setup_dst_surface(ump, dest) < 0)
+	if (setup_dst_surface(pvt, ump, dest) < 0)
 		goto err;
 
 	if (src2) {
@@ -447,6 +515,12 @@ shbeu_wait(SHBEU *pvt)
 	/* Wait for BEU to stop */
 	while (read_reg(&pvt->uio_mmio, BSTAR) & 1)
 		;
+
+	/* Free any temporary BEU buffers */
+	free_temp_buf(pvt, &pvt->src[0]);
+	free_temp_buf(pvt, &pvt->src[1]);
+	free_temp_buf(pvt, &pvt->src[2]);
+	free_temp_buf(pvt, &pvt->dest);
 
 	uiomux_unlock(pvt->uiomux, UIOMUX_SH_BEU);
 
