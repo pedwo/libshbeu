@@ -49,27 +49,27 @@ struct beu_allocated_bufs {
 };
 
 struct beu_format_info {
-	sh_vid_format_t fmt;
+	ren_vid_format_t fmt;
 	unsigned long bpXfr;
 	unsigned long bswpr;
 };
 
 static const struct beu_format_info beu_src_fmts[] = {
-	{ SH_NV12,   CHRR_YCBCR_420, 7 },
-	{ SH_NV16,   CHRR_YCBCR_422, 7 },
-	{ SH_RGB565, RPKF_RGB16,     6 },
-	{ SH_RGB24,  RPKF_RGB24,     7 },
-	{ SH_BGR24,  RPKF_BGR24,     7 },
-	{ SH_RGB32,  RPKF_RGB32,     4 },
-	{ SH_ARGB32, RPKF_RGB32,     4 },
+	{ REN_NV12,   CHRR_YCBCR_420, 7 },
+	{ REN_NV16,   CHRR_YCBCR_422, 7 },
+	{ REN_RGB565, RPKF_RGB16,     6 },
+	{ REN_RGB24,  RPKF_RGB24,     7 },
+	{ REN_BGR24,  RPKF_BGR24,     7 },
+	{ REN_RGB32,  RPKF_RGB32,     4 },
+	{ REN_ARGB32, RPKF_RGB32,     4 },
 };
 
 static const struct beu_format_info beu_dst_fmts[] = {
-	{ SH_NV12,   CHRR_YCBCR_420, 7 },
-	{ SH_NV16,   CHRR_YCBCR_422, 7 },
-	{ SH_RGB565, WPCK_RGB16,     6 },
-	{ SH_RGB24,  WPCK_RGB24,     7 },
-	{ SH_RGB32,  WPCK_RGB32,     4 },
+	{ REN_NV12,   CHRR_YCBCR_420, 7 },
+	{ REN_NV16,   CHRR_YCBCR_422, 7 },
+	{ REN_RGB565, WPCK_RGB16,     6 },
+	{ REN_RGB24,  WPCK_RGB24,     7 },
+	{ REN_RGB32,  WPCK_RGB32,     4 },
 };
 
 
@@ -87,7 +87,7 @@ struct SHBEU {
 };
 
 
-static const struct beu_format_info *src_fmt_info(sh_vid_format_t format)
+static const struct beu_format_info *src_fmt_info(ren_vid_format_t format)
 {
 	int i, nr_fmts;
 
@@ -99,7 +99,7 @@ static const struct beu_format_info *src_fmt_info(sh_vid_format_t format)
 	return NULL;
 }
 
-static const struct beu_format_info *dst_fmt_info(sh_vid_format_t format)
+static const struct beu_format_info *dst_fmt_info(ren_vid_format_t format)
 {
 	int i, nr_fmts;
 
@@ -298,7 +298,7 @@ setup_src_surface(SHBEU *beu, struct uio_map *ump, int index, const struct shbeu
 
 	/* Set alpha value for entire plane, if no alpha data */
 	tmp = read_reg(ump, BBLCR0);
-	if (surface->pa || surface->format == SH_ARGB32)
+	if (surface->pa || surface->format == REN_ARGB32)
 		tmp |= (1 << (index+28));
 	else
 		tmp |= ((surface->alpha & 0xFF) << index*8);

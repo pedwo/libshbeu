@@ -137,29 +137,29 @@ static const char * show_size (int w, int h)
 
 struct extensions_t {
 	const char *ext;
-	sh_vid_format_t fmt;
+	ren_vid_format_t fmt;
 	int is_bmp;
 };
 
 static const struct extensions_t exts[] = {
-	{ "RGB565",   SH_RGB565, 0 },
-	{ "rgb",      SH_RGB565, 0 },
-	{ "RGB888",   SH_RGB24, 0 },
-	{ "888",      SH_RGB24, 0 },
-	{ "BGR24",    SH_BGR24, 0 },
-	{ "bmp",      SH_BGR24, 1 },	/* 24-bit BGR, upside down */
-	{ "RGBx888",  SH_RGB32, 0 },
-	{ "x888",     SH_RGB32, 0 },
-	{ "YCbCr420", SH_NV12, 0 },
-	{ "420",      SH_NV12, 0 },
-	{ "yuv",      SH_NV12, 0 },
-	{ "NV12",     SH_NV12, 0 },
-	{ "YCbCr422", SH_NV16, 0 },
-	{ "422",      SH_NV16, 0 },
-	{ "NV16",     SH_NV16, 0 },
+	{ "RGB565",   REN_RGB565, 0 },
+	{ "rgb",      REN_RGB565, 0 },
+	{ "RGB888",   REN_RGB24, 0 },
+	{ "888",      REN_RGB24, 0 },
+	{ "BGR24",    REN_BGR24, 0 },
+	{ "bmp",      REN_BGR24, 1 },	/* 24-bit BGR, upside down */
+	{ "RGBx888",  REN_RGB32, 0 },
+	{ "x888",     REN_RGB32, 0 },
+	{ "YCbCr420", REN_NV12, 0 },
+	{ "420",      REN_NV12, 0 },
+	{ "yuv",      REN_NV12, 0 },
+	{ "NV12",     REN_NV12, 0 },
+	{ "YCbCr422", REN_NV16, 0 },
+	{ "422",      REN_NV16, 0 },
+	{ "NV16",     REN_NV16, 0 },
 };
 
-static int set_colorspace (char * arg, sh_vid_format_t * c, int * is_bmp)
+static int set_colorspace (char * arg, ren_vid_format_t * c, int * is_bmp)
 {
 	int nr_exts = sizeof(exts) / sizeof(exts[0]);
 	int i;
@@ -180,7 +180,7 @@ static int set_colorspace (char * arg, sh_vid_format_t * c, int * is_bmp)
 	return -1;
 }
 
-static const char * show_colorspace (sh_vid_format_t c)
+static const char * show_colorspace (ren_vid_format_t c)
 {
 	int nr_exts = sizeof(exts) / sizeof(exts[0]);
 	int i;
@@ -208,12 +208,12 @@ static off_t filesize (char * filename)
 	return statbuf.st_size;
 }
 
-static off_t imgsize (sh_vid_format_t colorspace, int w, int h)
+static off_t imgsize (ren_vid_format_t colorspace, int w, int h)
 {
 	return (off_t)(size_y(colorspace, w*h) + size_c(colorspace, w*h));
 }
 
-static int guess_colorspace (char * filename, sh_vid_format_t * c, int * is_bmp)
+static int guess_colorspace (char * filename, ren_vid_format_t * c, int * is_bmp)
 {
 	char * ext;
 
@@ -222,7 +222,7 @@ static int guess_colorspace (char * filename, sh_vid_format_t * c, int * is_bmp)
 
 	/* If the colorspace is already set (eg. explicitly by user args)
 	 * then don't try to guess */
-	if (*c != SH_UNKNOWN) return -1;
+	if (*c != REN_UNKNOWN) return -1;
 
 	ext = strrchr (filename, '.');
 	if (ext == NULL) return -1;
@@ -313,7 +313,7 @@ static void blend(
 	/* Destination surface info */
 	dst.py = bb_virt;
 	dst.pitch = lcd_w;
-	dst.format = SH_RGB565;
+	dst.format = REN_RGB565;
 
 	/* Limit the size of the images used in blend to the LCD */
 	for (i=0; i<nr_inputs; i++) {
@@ -373,8 +373,8 @@ void create_per_pixel_alpha(UIOMux *uiomux, surface_t *s)
 	int y, alpha = 255;
 	unsigned char *pA;
 
-	if ((s->surface.format != SH_NV12)
-	    && (s->surface.format != SH_NV16))
+	if ((s->surface.format != REN_NV12)
+	    && (s->surface.format != REN_NV16))
 		return;
 
 	/* Create alpha plane */
@@ -395,7 +395,7 @@ void set_per_pixel_alpha_argb(UIOMux *uiomux, surface_t *s)
 	uint32_t *pARGB;
 	uint32_t argb;
 
-	if (s->surface.format != SH_RGB32)
+	if (s->surface.format != REN_RGB32)
 		return;
 
 	s->surface.pa = s->surface.py;
@@ -452,7 +452,7 @@ int read_image_from_file(surface_t *s)
 			s->size = (dib.width * dib.height * dib.bitspp) / 4;
 			s->surface.width = dib.width;
 			s->surface.height = dib.height;
-			s->surface.format = (dib.bitspp == 32) ? SH_ARGB32 : SH_BGR24;
+			s->surface.format = (dib.bitspp == 32) ? REN_ARGB32 : REN_BGR24;
 		}
 
 		/* Read input */
@@ -507,7 +507,7 @@ int main (int argc, char * argv[])
 		current = &in[i];
 		current->surface.width = -1;
 		current->surface.height = -1;
-		current->surface.format = SH_UNKNOWN;
+		current->surface.format = REN_UNKNOWN;
 		beu_inputs[i] = &in[i].surface;
 	}
 	current = &in[nr_inputs];
@@ -595,7 +595,7 @@ int main (int argc, char * argv[])
 		guess_size (current->filename, current->surface.format, &current->surface.width, &current->surface.height);
 
 		/* Check that all parameters are set */
-		if (current->surface.format == SH_UNKNOWN) {
+		if (current->surface.format == REN_UNKNOWN) {
 			fprintf (stderr, "ERROR: Input colorspace unspecified\n");
 			error = 1;
 		}

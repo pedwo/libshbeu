@@ -17,74 +17,87 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston MA  02110-1301 USA
  */
 
-/* Common information for SH video buffers */
-#ifndef __SH_VIDEO_BUFFER_H__
-#define __SH_VIDEO_BUFFER_H__
+/* Common information for Renesas video buffers */
+#ifndef __REN_VIDEO_BUFFER_H__
+#define __REN_VIDEO_BUFFER_H__
+
+/* Notes on YUV/YCbCr:
+ * YUV historically refers to analogue color space, and YCbCr to digital.
+ * The formula used to convert to/from RGB is BT.601 or BT.709. HDTV specifies
+ * BT.709, everything else BT.601.
+ * MPEG standards use 'clamped' data with Y[16,235], CbCr[16,240]. JFIF file
+ * format for JPEG specifies full-range data.
+ * All YCbCr formats here are BT.601, Y[16,235], CbCr[16,240].
+ */
 
 /** Surface formats */
 typedef enum {
-	SH_UNKNOWN,
-	SH_NV12,    /**< YUV420: Y plane, packed CbCr plane, optional alpha plane */
-	SH_NV16,    /**< YUV422: Y plane, packed CbCr plane, optional alpha plane */
-	SH_RGB565,  /**< Packed RGB565 */
-	SH_RGB24,   /**< Packed RGB888 */
-	SH_BGR24,   /**< Packed BGR888 */
-	SH_RGB32,   /**< Packed XRGB8888 (most significant byte ignored) */
-	SH_ARGB32,  /**< Packed ARGB8888 */
-} sh_vid_format_t;
+	REN_UNKNOWN,
+	REN_NV12,    /**< YCbCr420: Y plane, packed CbCr plane, optional alpha plane */
+	REN_NV16,    /**< YCbCr422: Y plane, packed CbCr plane, optional alpha plane */
+	REN_RGB565,  /**< Packed RGB565 */
+	REN_RGB24,   /**< Packed RGB888 */
+	REN_BGR24,   /**< Packed BGR888 */
+	REN_RGB32,   /**< Packed XRGB8888 (most significant byte ignored) */
+	REN_ARGB32,  /**< Packed ARGB8888 */
+} ren_vid_format_t;
 
 
 /** Bounding rectange */
-struct sh_vid_rect {
+struct ren_vid_rect {
 	int x;      /**< Offset from left in pixels */
 	int y;      /**< Offset from top in pixels */
-	int w;      /**< Width of surface in pixels */
-	int h;      /**< Height of surface in pixels */
+	int w;      /**< Width of rectange in pixels */
+	int h;      /**< Height of rectange in pixels */
 };
 
 /** Surface */
-struct sh_vid_surface {
-	sh_vid_format_t format; /**< Surface format */
-	int w;      /**< Width of surface in pixels */
-	int h;      /**< Height of surface in pixels */
+struct ren_vid_surface {
+	ren_vid_format_t format; /**< Surface format */
+	int w;      /**< Width of active surface in pixels */
+	int h;      /**< Height of active surface in pixels */
+	int pitch;  /**< Width of surface in pixels */
 	void *py;   /**< Address of Y or RGB plane */
 	void *pc;   /**< Address of CbCr plane (ignored for RGB) */
-	void *pa;   /**< Address of Alpha plane */
+	void *pa;   /**< Address of Alpha plane (ignored) */
 };
 
 struct format_info {
-	sh_vid_format_t fmt;    /**< surface format */
+	ren_vid_format_t fmt;    /**< surface format */
 	int y_bpp;      /**< Luma numerator */
+	int c_bpp;      /**< Chroma numerator */
 	int c_bpp_n;    /**< Chroma numerator */
 	int c_bpp_d;    /**< Chroma denominator */
+	int c_ss_horz;  /**< Chroma horizontal sub-sampling */
+	int c_ss_vert;  /**< Chroma vertical sub-sampling */
 };
 
 static const struct format_info fmts[] = {
-	{ SH_UNKNOWN, 0, 0, 1 },
-	{ SH_NV12,    1, 1, 2 },
-	{ SH_NV16,    1, 1, 1 },
-	{ SH_RGB565,  2, 0, 1 },
-	{ SH_RGB24,   3, 0, 1 },
-	{ SH_BGR24,   3, 0, 1 },
-	{ SH_RGB32,   4, 0, 1 },
-	{ SH_ARGB32,  4, 0, 1 },
+	{ REN_UNKNOWN, 0, 0, 0, 1, 1, 1 },
+	{ REN_NV12,    1, 2, 1, 2, 2, 2 },
+	{ REN_NV16,    1, 2, 1, 1, 2, 1 },
+	{ REN_RGB565,  2, 0, 0, 1, 1, 1 },
+	{ REN_RGB24,   3, 0, 0, 1, 1, 1 },
+	{ REN_BGR24,   3, 0, 0, 1, 1, 1 },
+	{ REN_RGB32,   4, 0, 0, 1, 1, 1 },
+	{ REN_ARGB32,  4, 0, 0, 1, 1, 1 },
 };
 
-static inline int is_ycbcr(sh_vid_format_t fmt)
+static inline int is_ycbcr(ren_vid_format_t fmt)
 {
-	if (fmt >= SH_NV12 && fmt <= SH_NV16)
+	if (fmt >= REN_NV12 && fmt <= REN_NV16)
 		return 1;
 	return 0;
 }
 
-static inline int is_rgb(sh_vid_format_t fmt)
+static inline int is_rgb(ren_vid_format_t fmt)
 {
-	if (fmt >= SH_RGB565 && fmt <= SH_ARGB32)
+	if (fmt >= REN_RGB565 && fmt <= REN_ARGB32)
 		return 1;
 	return 0;
 }
 
-static inline int different_colorspace(sh_vid_format_t fmt1, sh_vid_format_t fmt2)
+static inline int different_colorspace(ren_vid_format_t fmt1, ren_vid_format_t fmt2)
 {
 	if ((is_rgb(fmt1) && is_ycbcr(fmt2))
 	    || (is_ycbcr(fmt1) && is_rgb(fmt2)))
@@ -92,17 +105,73 @@ static inline int different_colorspace(sh_vid_format_t fmt1, sh_vid_format_t fmt
 	return 0;
 }
 
-static inline size_t size_y(sh_vid_format_t fmt, int nr_pixels)
+static inline size_t size_y(ren_vid_format_t format, int nr_pixels)
 {
-	return (fmts[fmt].y_bpp * nr_pixels);
+	const struct format_info *fmt = &fmts[format];
+	return (fmt->y_bpp * nr_pixels);
 }
 
-static inline size_t size_c(sh_vid_format_t fmt, int nr_pixels)
+static inline size_t size_c(ren_vid_format_t format, int nr_pixels)
 {
-	return (fmts[fmt].c_bpp_n * nr_pixels) / fmts[fmt].c_bpp_d;
+	const struct format_info *fmt = &fmts[format];
+	return (fmt->c_bpp_n * nr_pixels) / fmt->c_bpp_d;
 }
 
-#endif /* __SH_VIDEO_BUFFER_H__ */
+static inline size_t size_a(ren_vid_format_t format, int nr_pixels)
+{
+	/* Assume 1 byte per alpha pixel */
+	return nr_pixels;
+}
+
+static inline size_t offset_y(ren_vid_format_t format, int w, int h, int pitch)
+{
+	const struct format_info *fmt = &fmts[format];
+	return (fmt->y_bpp * ((h * pitch) + w));
+}
+
+static inline size_t offset_c(ren_vid_format_t format, int w, int h, int pitch)
+{
+	const struct format_info *fmt = &fmts[format];
+	return (fmt->c_bpp * (((h/fmt->c_ss_vert) * pitch/fmt->c_ss_horz) + w/fmt->c_ss_horz));
+}
+
+static inline size_t offset_a(ren_vid_format_t format, int w, int h, int pitch)
+{
+	/* Assume 1 byte per alpha pixel */
+	return ((h * pitch) + w);
+}
+
+static int horz_increment(ren_vid_format_t format)
+{
+	/* Only restriction is caused by chroma sub-sampling */
+	return fmts[format].c_ss_horz;
+}
+
+static int vert_increment(ren_vid_format_t format)
+{
+	/* Only restriction is caused by chroma sub-sampling */
+	return fmts[format].c_ss_vert;
+}
+
+/* Get a new surface descriptor based on a selection */
+static inline void get_sel_surface(
+	struct ren_vid_surface *out,
+	const struct ren_vid_surface *in,
+	const struct ren_vid_rect *sel)
+{
+	int x = sel->x & ~horz_increment(in->format);
+	int y = sel->y & ~vert_increment(in->format);
+
+	*out = *in;
+	out->w = sel->w & ~horz_increment(in->format);
+	out->h = sel->h & ~vert_increment(in->format);
+
+	if (in->py) out->py += offset_y(in->format, x, y, in->pitch);
+	if (in->pc) out->pc += offset_c(in->format, x, y, in->pitch);
+	if (in->pa) out->pa += offset_a(in->format, x, y, in->pitch);
+}
+
+#endif /* __REN_VIDEO_BUFFER_H__ */
 
 
 #ifndef __SHBEU_H__
@@ -210,7 +279,7 @@ struct shbeu_surface {
 	int pitch;          /**< Line pitch in pixels */
 	int x;              /**< Overlay position (horizontal) (ignored for destination surface) */
 	int y;              /**< Overlay position (vertical) (ignored for destination surface) */
-	sh_vid_format_t format; /**< Format */
+	ren_vid_format_t format; /**< Format */
 };
 
 
