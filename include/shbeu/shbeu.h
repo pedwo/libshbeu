@@ -273,9 +273,9 @@ struct shbeu_surface {
 	void *py;           /**< Ptr to Y or RGB plane */
 	void *pc;           /**< Ptr to CbCr plane (ignored for RGB) */
 	void *pa;           /**< Ptr to alpha plane (ignored for RGB or destination surface) */
-	unsigned char alpha;/**< Fixed alpha value [0..255] for entire surface. Only used if a=0. 0=transparent, 255=opaque */
-	int width;          /**< Width in pixels (ignored for destination surface) */
-	int height;         /**< Height in pixels (ignored for destination surface) */
+	unsigned char alpha;/**< Fixed alpha value [0..255] for entire surface. Only used if pa=0. 0=transparent, 255=opaque */
+	int w;              /**< Width in pixels (destination must be same as parent surface, src1) */
+	int h;              /**< Height in pixels (destination must be same as parent surface, src1) */
 	int pitch;          /**< Line pitch in pixels */
 	int x;              /**< Overlay position (horizontal) (ignored for destination surface) */
 	int y;              /**< Overlay position (vertical) (ignored for destination surface) */

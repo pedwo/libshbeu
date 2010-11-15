@@ -35,6 +35,12 @@
 /* Only enable this if you are testing with a YCbCr overlay */
 //#define TEST_PER_PIXEL_ALPHA
 
+/* Only enable this is you are testing input buffer stride != width */
+//#define TEST_INPUT_BUFFER_SELECTION
+
+/* Only enable this is you are testing different types of input buffer */
+//#define TEST_INPUT_BUFFER_MALLOC
+
 /* RGB565 colors */
 #define BLACK 0x0000
 #define RED   0xF800
@@ -310,18 +316,22 @@ static void blend(
 	/* Clear the back buffer */
 	draw_rect_rgb565(bb_virt, BLACK, 0, 0, lcd_w, lcd_h, lcd_w);
 
-	/* Destination surface info */
-	dst.py = bb_virt;
-	dst.pitch = lcd_w;
-	dst.format = REN_RGB565;
-
 	/* Limit the size of the images used in blend to the LCD */
 	for (i=0; i<nr_inputs; i++) {
-		if (sources[i]->width > lcd_w)
-			sources[i]->width = lcd_w;
-		if (sources[i]->height > lcd_h)
-			sources[i]->height = lcd_h;
+		if (sources[i]->w > lcd_w)
+			sources[i]->w = lcd_w;
+		if (sources[i]->h > lcd_h)
+			sources[i]->h = lcd_h;
 	}
+
+	/* Destination surface info */
+	dst.py = bb_virt;
+	dst.pc = NULL;
+	dst.pa = NULL;
+	dst.w = sources[0]->w;
+	dst.h = sources[0]->h;
+	dst.pitch = lcd_w;
+	dst.format = REN_RGB565;
 
 	clock_gettime(CLOCK_MONOTONIC, &start);
 
@@ -340,9 +350,11 @@ static void blend(
 
 int setup_input_surface(char *progname, UIOMux *uiomux, int i, surface_t *s)
 {
+	size_t buf_len;
+
 	printf ("[%d] Input colorspace:\t%s\n", i, show_colorspace (s->surface.format));
-	printf ("[%d] Input size:      \t%dx%d %s\n", i, s->surface.width, s->surface.height,
-		show_size (s->surface.width, s->surface.height));
+	printf ("[%d] Input size:      \t%dx%d %s\n", i, s->surface.w, s->surface.h,
+		show_size (s->surface.w, s->surface.h));
 
 	s->file = fopen (s->filename, "rb");
 	if (s->file == NULL) {
@@ -351,15 +363,19 @@ int setup_input_surface(char *progname, UIOMux *uiomux, int i, surface_t *s)
 		return -1;
 	}
 
-	s->size = imgsize (s->surface.format, s->surface.width, s->surface.height);
-	s->virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, s->size, 32);
+	buf_len = imgsize (s->surface.format, s->surface.pitch, s->surface.h);
+	s->size = imgsize (s->surface.format, s->surface.w, s->surface.h);
+#ifdef TEST_INPUT_BUFFER_MALLOC
+	s->virt = malloc (buf_len);
+#else
+	s->virt = uiomux_malloc (uiomux, UIOMUX_SH_BEU, buf_len, 32);
+#endif
 	if (!s->virt) {
 		perror("uiomux_malloc");
 		return -1;
 	}
-	s->surface.pitch = s->surface.width;
-	s->surface.py = s->virt;;
-	s->surface.pc = s->surface.py + (s->surface.width * s->surface.height);
+	s->surface.py = s->virt;
+	s->surface.pc = s->surface.py + (s->surface.pitch * s->surface.h);
 	s->surface.pa = 0;
 	s->surface.alpha = 255 - i*70;	/* 1st layer opaque, others semi-transparent */
 	s->surface.x = 0;
@@ -378,11 +394,15 @@ void create_per_pixel_alpha(UIOMux *uiomux, surface_t *s)
 		return;
 
 	/* Create alpha plane */
-	pA = uiomux_malloc (uiomux, UIOMUX_SH_BEU, (s->surface.width * s->surface.height), 32);
+#ifdef TEST_INPUT_BUFFER_MALLOC
+	pA = malloc (s->surface.w * s->surface.h);
+#else
+	pA = uiomux_malloc (uiomux, UIOMUX_SH_BEU, (s->surface.w * s->surface.h), 32);
+#endif
 	if (pA) {
-		for (y=0; y<s->surface.height; y++) {
-			alpha = (y << 8) / s->surface.height;
-			memset(pA+y*s->surface.width, alpha, s->surface.width);
+		for (y=0; y<s->surface.h; y++) {
+			alpha = (y << 8) / s->surface.h;
+			memset(pA+y*s->surface.w, alpha, s->surface.w);
 		}
 	}
 	s->surface.pa = pA;
@@ -401,14 +421,54 @@ void set_per_pixel_alpha_argb(UIOMux *uiomux, surface_t *s)
 	s->surface.pa = s->surface.py;
 	pARGB = s->surface.pa;
 
-	for (x=0; x<s->surface.width; x++) {
-		for (y=0; y<s->surface.height; y++) {
-			alpha = (y << 8) / s->surface.height;
-			argb = pARGB[x + y*s->surface.width];
+	for (x=0; x<s->surface.w; x++) {
+		for (y=0; y<s->surface.h; y++) {
+			alpha = (y << 8) / s->surface.h;
+			argb = pARGB[x + y*s->surface.w];
 			argb = (argb & 0xFFFFFF) | (alpha << 24);
-			pARGB[x + y*s->surface.width] = argb;
+			pARGB[x + y*s->surface.w] = argb;
 		}
 	}
+}
+
+static size_t read_plane(FILE *file, void *dst, int bpp, int h, int len, int dst_pitch)
+{
+	size_t y;
+	size_t length = len * bpp;
+
+	for (y=0; y<h; y++) {
+		if (fread (dst, 1, length, file) != length)
+			return 0;
+		dst += dst_pitch * bpp;
+	}
+
+	return length * h;
+}
+
+/* Read frame from a file */
+static size_t read_surface(
+	FILE *file,
+	struct shbeu_surface *out)
+{
+	const struct format_info *fmt;
+	size_t len = 0;
+
+	fmt = &fmts[out->format];
+
+	if (out->py)
+		len += read_plane(file, out->py, fmt->y_bpp, out->h, out->w, out->pitch);
+
+	if (out->pc) {
+		len += read_plane(file, out->pc, fmt->c_bpp,
+			out->h/fmt->c_ss_vert,
+			out->w/fmt->c_ss_horz,
+			out->pitch/fmt->c_ss_horz);
+	}
+
+	if (out->pa)
+		len += read_plane(file, out->pa, 1, out->h, out->w, out->pitch);
+
+	return len;
 }
 
 struct bmpfile_magic {
@@ -450,14 +510,14 @@ int read_image_from_file(surface_t *s)
 			fread (&header, 1, sizeof(struct bmpfile_header), s->file);
 			fread (&dib, 1, sizeof(struct bmp_dib_v3_header), s->file);
 			s->size = (dib.width * dib.height * dib.bitspp) / 4;
-			s->surface.width = dib.width;
-			s->surface.height = dib.height;
+			s->surface.w = dib.width;
+			s->surface.h = dib.height;
 			s->surface.format = (dib.bitspp == 32) ? REN_ARGB32 : REN_BGR24;
 		}
 
 		/* Read input */
-		if ((s->nread = fread (s->virt, 1, s->size, s->file)) != s->size) {
-			if (s->nread == 0 && feof (s->file)) {
+		if (read_surface(s->file, &s->surface) != s->size) {
+			if (feof(s->file)) {
 				run = 0;
 			} else {
 				fprintf (stderr, "error reading input file %s\n", s->filename);
@@ -505,8 +565,8 @@ int main (int argc, char * argv[])
 	memset(&in, 0, sizeof(in));
 	for (i=0; i<3; i++) {
 		current = &in[i];
-		current->surface.width = -1;
-		current->surface.height = -1;
+		current->surface.w = -1;
+		current->surface.h = -1;
 		current->surface.format = REN_UNKNOWN;
 		beu_inputs[i] = &in[i].surface;
 	}
@@ -537,7 +597,7 @@ int main (int argc, char * argv[])
 			set_colorspace (optarg, &current->surface.format, &current->is_bmp);
 			break;
 		case 's': /* input size */
-			set_size (optarg, &current->surface.width, &current->surface.height);
+			set_size (optarg, &current->surface.w, &current->surface.h);
 			break;
 		case 'i': /* input file */
 			current->filename = optarg;
@@ -592,24 +652,29 @@ int main (int argc, char * argv[])
 		printf ("[%d] Input file:      \t%s\n", i, current->filename);
 
 		guess_colorspace (current->filename, &current->surface.format, &current->is_bmp);
-		guess_size (current->filename, current->surface.format, &current->surface.width, &current->surface.height);
+		guess_size (current->filename, current->surface.format, &current->surface.w, &current->surface.h);
 
 		/* Check that all parameters are set */
 		if (current->surface.format == REN_UNKNOWN) {
 			fprintf (stderr, "ERROR: Input colorspace unspecified\n");
 			error = 1;
 		}
-		if (current->surface.width == -1) {
+		if (current->surface.w == -1) {
 			fprintf (stderr, "ERROR: Input width unspecified\n");
 			error = 1;
 		}
-		if (current->surface.height == -1) {
+		if (current->surface.h == -1) {
 			fprintf (stderr, "ERROR: Input height unspecified\n");
 			error = 1;
 		}
 
 		if (error) goto exit_err;
 
+#ifdef TEST_INPUT_BUFFER_SELECTION
+		current->surface.pitch = current->surface.w * 2;
+#else
+		current->surface.pitch = current->surface.w;
+#endif
 		if (setup_input_surface(progname, uiomux, i, current) < 0) 
 			goto exit_err;
 	}
@@ -685,15 +750,20 @@ int main (int argc, char * argv[])
 	endwin();
 #endif
 
+#ifdef TEST_INPUT_BUFFER_MALLOC
+	for (i=0; i<nr_inputs; i++)
+		free (in[i].virt);
+#else
 	for (i=0; i<nr_inputs; i++)
 		uiomux_free (uiomux, UIOMUX_SH_BEU, in[i].virt, in[i].size);
+#endif
 
 	display_close(display);
 	shbeu_close(beu);
 	uiomux_close (uiomux);
 
 	us = time_total_us/nr_blends;
-	printf("Average time for blend is %luus (%ld pixel/us)\n", us, (in[0].surface.width * in[0].surface.height)/us);
+	printf("Average time for blend is %luus (%ld pixel/us)\n", us, (in[0].surface.w * in[0].surface.h)/us);
 
 exit_ok:
 	exit (0);
