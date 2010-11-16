@@ -270,16 +270,10 @@ typedef struct SHBEU SHBEU;
  * Surface specification.
  */
 struct shbeu_surface {
-	void *py;           /**< Ptr to Y or RGB plane */
-	void *pc;           /**< Ptr to CbCr plane (ignored for RGB) */
-	void *pa;           /**< Ptr to alpha plane (ignored for RGB or destination surface) */
+	struct ren_vid_surface s; /**< surface */
 	unsigned char alpha;/**< Fixed alpha value [0..255] for entire surface. Only used if pa=0. 0=transparent, 255=opaque */
-	int w;              /**< Width in pixels (destination must be same as parent surface, src1) */
-	int h;              /**< Height in pixels (destination must be same as parent surface, src1) */
-	int pitch;          /**< Line pitch in pixels */
 	int x;              /**< Overlay position (horizontal) (ignored for destination surface) */
 	int y;              /**< Overlay position (vertical) (ignored for destination surface) */
-	ren_vid_format_t format; /**< Format */
 };
 
 

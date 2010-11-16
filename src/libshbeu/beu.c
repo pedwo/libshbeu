@@ -124,8 +124,8 @@ static void copy_plane(void *dst, void *src, int bpp, int h, int len, int dst_pi
 
 /* Copy active surface contents - assumes output is big enough */
 static void copy_surface(
-	struct shbeu_surface *out,
-	const struct shbeu_surface *in)
+	struct ren_vid_surface *out,
+	const struct ren_vid_surface *in)
 {
 	const struct format_info *fmt;
 
@@ -148,16 +148,18 @@ static void copy_surface(
 /* Check/create surface that can be accessed by the hardware */
 static int get_hw_surface(
 	UIOMux * uiomux,
-	struct shbeu_surface *out,
-	const struct shbeu_surface *in)
+	struct shbeu_surface *out_spec,
+	const struct shbeu_surface *in_spec)
 {
+	struct ren_vid_surface *out = &out_spec->s;
+	const struct ren_vid_surface *in = &in_spec->s;
 	unsigned long phys;
 	int y;
 
 	if (in == NULL || out == NULL)
 		return 0;
 
-	*out = *in;
+	*out_spec = *in_spec;
 
 	if (in->py) {
 		phys = uiomux_all_virt_to_phys(in->py);
@@ -195,7 +197,7 @@ static int get_hw_surface(
 	return 0;
 }
 
-static void free_temp_buf(SHBEU *beu, struct shbeu_surface *user, struct shbeu_surface *hw)
+static void free_temp_buf(SHBEU *beu, struct ren_vid_surface *user, struct ren_vid_surface *hw)
 {
 	if (user == NULL || hw == NULL)
 		return;
@@ -282,12 +284,13 @@ void shbeu_close(SHBEU *pvt)
 
 /* Setup input surface */
 static int
-setup_src_surface(SHBEU *beu, struct uio_map *ump, int index, const struct shbeu_surface *surface)
+setup_src_surface(SHBEU *beu, struct uio_map *ump, int index, const struct shbeu_surface *spec)
 {
 	const int offsets[] = {SRC1_BASE, SRC2_BASE, SRC3_BASE};
 	int offset = offsets[index];
 	unsigned long tmp;
 	const struct beu_format_info *info;
+	const struct ren_vid_surface *surface = &spec->s;
 	unsigned long Y, C, A;
 
 	/* Not having an overlay surface is valid */
@@ -337,7 +340,7 @@ setup_src_surface(SHBEU *beu, struct uio_map *ump, int index, const struct shbeu
 	write_reg(ump, tmp, BSIFR + offset);
 
 	/* Position of overlay */
-	tmp = (surface->y << 16) | surface->x;
+	tmp = (spec->y << 16) | spec->x;
 	write_reg(ump, tmp, BLOCR1 + index*4);
 
 #ifdef __LITTLE_ENDIAN__
@@ -353,7 +356,7 @@ setup_src_surface(SHBEU *beu, struct uio_map *ump, int index, const struct shbeu
 	if (surface->pa || surface->format == REN_ARGB32)
 		tmp |= (1 << (index+28));
 	else
-		tmp |= ((surface->alpha & 0xFF) << index*8);
+		tmp |= ((spec->alpha & 0xFF) << index*8);
 	write_reg(ump, tmp, BBLCR0);
 
 	return 0;
@@ -363,10 +366,11 @@ setup_src_surface(SHBEU *beu, struct uio_map *ump, int index, const struct shbeu
 /* The dest size is defined by input surface 1. The output can be on a larger
    canvas by setting the pitch */
 static int
-setup_dst_surface(SHBEU *beu, struct uio_map *ump, const struct shbeu_surface *dest)
+setup_dst_surface(SHBEU *beu, struct uio_map *ump, const struct shbeu_surface *spec)
 {
 	unsigned long tmp;
 	const struct beu_format_info *info;
+	const struct ren_vid_surface *dest = &spec->s;
 	unsigned long Y, C;
 
 	if (!dest)
@@ -453,11 +457,11 @@ shbeu_start_blend(
 		return -1;
 
 	/* Check the size of the destination surface is big enough */
-	if (dest_in->pitch <= src1_in->w)
+	if (dest_in->s.pitch <= src1_in->s.w)
 		return -1;
 
 	/* Check the size of the destination surface matches the parent surface */
-	if (dest_in->w != src1_in->w || dest_in->h != src1_in->h)
+	if (dest_in->s.w != src1_in->s.w || dest_in->s.h != src1_in->s.h)
 		return -1;
 
 	/* surfaces - use buffers the hardware can access */
@@ -470,17 +474,17 @@ shbeu_start_blend(
 	if (get_hw_surface(pvt->uiomux, dest, dest_in) < 0)
 		return -1;
 
-	copy_surface(src1, src1_in);
-	copy_surface(src2, src2_in);
-	copy_surface(src3, src3_in);
+	copy_surface(&src1->s, &src1_in->s);
+	copy_surface(&src2->s, &src2_in->s);
+	copy_surface(&src3->s, &src3_in->s);
 
 	src_check = src1;
 
 	/* Ensure src2 and src3 formats are the same type (only input 1 on the
 	   hardware has colorspace conversion */
 	if (src2 && src3) {
-		if (different_colorspace(src2->format, src3->format)) {
-			if (different_colorspace(src1->format, src2->format)) {
+		if (different_colorspace(src2->s.format, src3->s.format)) {
+			if (different_colorspace(src1->s.format, src2->s.format)) {
 				/* src2 is the odd one out, swap 1 and 2 */
 				struct shbeu_surface *tmp = src2;
 				src2 = src1;
@@ -546,7 +550,7 @@ shbeu_start_blend(
 		goto err;
 
 	if (src2) {
-		if (different_colorspace(src1->format, src2->format)) {
+		if (different_colorspace(src1->s.format, src2->s.format)) {
 			unsigned long bsifr = read_reg(ump, BSIFR + SRC1_BASE);
 			debug_info("Setting BSIFR1 IN1TE bit");
 			bsifr  |= (BSIFR1_IN1TE | BSIFR1_IN1TM);
@@ -557,7 +561,7 @@ shbeu_start_blend(
 	}
 
 	/* Is input 1 colourspace (after the colorspace convertor) RGB? */
-	if (is_rgb(src_check->format)) {
+	if (is_rgb(src_check->s.format)) {
 		unsigned long bpkfr = read_reg(ump, BPKFR);
 		debug_info("Setting BPKFR RY bit");
 		bpkfr |= BPKFR_RY;
@@ -565,7 +569,7 @@ shbeu_start_blend(
 	}
 
 	/* Is the output colourspace different to input? */
-	if (different_colorspace(dest->format, src_check->format)) {
+	if (different_colorspace(dest->s.format, src_check->s.format)) {
 		unsigned long bpkfr = read_reg(ump, BPKFR);
 		debug_info("Setting BPKFR TE bit");
 		bpkfr |= (BPKFR_TM2 | BPKFR_TM | BPKFR_DITH1 | BPKFR_TE);
@@ -606,13 +610,13 @@ shbeu_wait(SHBEU *pvt)
 		;
 
 	/* If we had to allocate hardware output buffer, copy the contents */
-	copy_surface(&pvt->dest_user, &pvt->dest_hw);
+	copy_surface(&pvt->dest_user.s, &pvt->dest_hw.s);
 
 	/* Free any temporary hardware buffers */
-	free_temp_buf(pvt, pvt->p_dest_user, &pvt->dest_hw);
-	free_temp_buf(pvt, pvt->p_src3_user, &pvt->src3_hw);
-	free_temp_buf(pvt, pvt->p_src2_user, &pvt->src2_hw);
-	free_temp_buf(pvt, pvt->p_src1_user, &pvt->src1_hw);
+	free_temp_buf(pvt, &pvt->p_dest_user->s, &pvt->dest_hw.s);
+	free_temp_buf(pvt, &pvt->p_src3_user->s, &pvt->src3_hw.s);
+	free_temp_buf(pvt, &pvt->p_src2_user->s, &pvt->src2_hw.s);
+	free_temp_buf(pvt, &pvt->p_src1_user->s, &pvt->src1_hw.s);
 
 	uiomux_unlock(pvt->uiomux, UIOMUX_SH_BEU);
 
