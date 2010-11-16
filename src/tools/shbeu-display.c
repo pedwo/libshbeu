@@ -416,7 +416,7 @@ static void create_per_pixel_alpha_argb(UIOMux *uiomux, struct ren_vid_surface *
 	uint32_t *pARGB;
 	uint32_t argb;
 
-	if (surface->format != REN_RGB32)
+	if (surface->format != REN_ARGB32)
 		return;
 
 	surface->pa = surface->py;
