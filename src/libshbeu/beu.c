@@ -309,7 +309,7 @@ setup_src_surface(SHBEU *beu, struct uio_map *ump, int index, const struct shbeu
 	fprintf(stderr, "\nsrc%d: fmt=%d: width=%d, height=%d pitch=%d\n",
 		index+1, surface->format, surface->w, surface->h, surface->pitch);
 	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX), alpha (0x%lX)\n", Y, C, A);
-	fprintf(stderr, "\toffset=(%d,%d), alternative alpha =%u\n", surface->x, surface->y, surface->alpha);
+	fprintf(stderr, "\toffset=(%d,%d), alternative alpha =%u\n", spec->x, spec->y, spec->alpha);
 #endif
 
 	if (!Y)
@@ -443,9 +443,9 @@ shbeu_start_blend(
 
 	/* Keep track of the user surfaces */
 	pvt->p_src1_user = (src1_in != NULL) ? &pvt->src1_user : NULL;
-	pvt->p_src2_user = (src1_in != NULL) ? &pvt->src2_user : NULL;
-	pvt->p_src3_user = (src1_in != NULL) ? &pvt->src3_user : NULL;
-	pvt->p_dest_user = (src1_in != NULL) ? &pvt->dest_user : NULL;
+	pvt->p_src2_user = (src2_in != NULL) ? &pvt->src2_user : NULL;
+	pvt->p_src3_user = (src3_in != NULL) ? &pvt->src3_user : NULL;
+	pvt->p_dest_user = (dest_in != NULL) ? &pvt->dest_user : NULL;
 
 	if (src1_in) pvt->src1_user = *src1_in;
 	if (src2_in) pvt->src2_user = *src2_in;
@@ -457,7 +457,7 @@ shbeu_start_blend(
 		return -1;
 
 	/* Check the size of the destination surface is big enough */
-	if (dest_in->s.pitch <= src1_in->s.w)
+	if (dest_in->s.pitch < src1_in->s.w)
 		return -1;
 
 	/* Check the size of the destination surface matches the parent surface */
