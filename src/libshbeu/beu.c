@@ -155,42 +155,33 @@ static int get_hw_surface(
 	const struct ren_vid_surface *in = &in_spec->s;
 	unsigned long phys;
 	int y;
+	int alloc = 0;
+	size_t len;
 
 	if (in == NULL || out == NULL)
 		return 0;
 
 	*out_spec = *in_spec;
+	if (in->py) alloc |= !uiomux_all_virt_to_phys(in->py);
+	if (in->pc) alloc |= !uiomux_all_virt_to_phys(in->pc);
+	if (in->pa) alloc |= !uiomux_all_virt_to_phys(in->pa);
 
-	if (in->py) {
-		phys = uiomux_all_virt_to_phys(in->py);
-		if (!phys) {
-			size_t len = size_y(in->format, in->h * in->w);
-			/* Supplied buffer is not usable by the hardware! */
-			out->py = uiomux_malloc(uiomux, UIOMUX_SH_BEU, len, 32);
-			if (!out->py)
-				return -1;
+	if (alloc) {
+		len =  size_y(in->format, in->h * in->w);
+		if (in->pc) len += size_c(in->format, in->h * in->w);
+		if (in->pa) len += size_a(in->format, in->h * in->w);
+
+		/* One of the supplied buffers is not usable by the hardware! */
+		out->py = uiomux_malloc(uiomux, UIOMUX_SH_BEU, len, 32);
+		if (!out->py)
+			return -1;
+
+		if (in->pc) {
+			out->pc = out->py + size_y(in->format, in->h * in->w);
 		}
-	}
-
-	if (in->pc) {
-		phys = uiomux_all_virt_to_phys(in->pc);
-		if (!phys) {
-			size_t len = size_c(in->format, in->h * in->w);
-			/* Supplied buffer is not usable by the hardware! */
-			out->pc = uiomux_malloc(uiomux, UIOMUX_SH_BEU, len, 32);
-			if (!out->pc)
-				return -1;
-		}
-	}
-
-	if (in->pa) {
-		phys = uiomux_all_virt_to_phys(in->pa);
-		if (!phys) {
-			size_t len = size_a(in->format, in->h * in->w);
-			/* Supplied buffer is not usable by the hardware! */
-			out->pa = uiomux_malloc(uiomux, UIOMUX_SH_BEU, len, 32);
-			if (!out->pa)
-				return -1;
+		if (in->pa) {
+			out->pa = out->py + size_y(in->format, in->h * in->w)
+			                  + size_c(in->format, in->h * in->w);
 		}
 	}
 
@@ -204,15 +195,9 @@ static void free_temp_buf(SHBEU *beu, struct ren_vid_surface *user, struct ren_v
 
 	if (hw->py && hw->py != user->py) {
 		size_t len = size_y(hw->format, hw->h * hw->w);
+		if (hw->pc) len += size_c(hw->format, hw->h * hw->w);
+		if (hw->pa) len += size_a(hw->format, hw->h * hw->w);
 		uiomux_free(beu->uiomux, UIOMUX_SH_BEU, hw->py, len);
-	}
-	if (hw->pc && hw->pc != user->pc) {
-		size_t len = size_c(hw->format, hw->h * hw->w);
-		uiomux_free(beu->uiomux, UIOMUX_SH_BEU, hw->pc, len);
-	}
-	if (hw->pa && hw->pa != user->pa) {
-		size_t len = size_a(hw->format, hw->h * hw->w);
-		uiomux_free(beu->uiomux, UIOMUX_SH_BEU, hw->pa, len);
 	}
 }
 
