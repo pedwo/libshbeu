@@ -109,7 +109,7 @@ LIBS=""
 dnl
 dnl Check for libuiomux
 dnl
-PKG_CHECK_MODULES(UIOMUX, uiomux >= 1.1.0)
+PKG_CHECK_MODULES(UIOMUX, uiomux >= 1.5.0)
 
 # check for getopt in a separate library
 HAVE_GETOPT=no
