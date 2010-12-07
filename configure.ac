@@ -23,7 +23,7 @@ AC_CONFIG_SRCDIR([src/libshbeu/beu.c])
 
 AC_PREREQ(2.53)
 
-AM_INIT_AUTOMAKE(libshbeu, 0.1.0)
+AM_INIT_AUTOMAKE(libshbeu, 1.0.0)
 AM_CONFIG_HEADER(config.h)
 
 ################################################################################
@@ -43,7 +43,7 @@ AM_CONFIG_HEADER(config.h)
 #     then set AGE to 0.                                                       #
 #                                                                              #
 ################################################################################
-SHARED_VERSION_INFO="0:0:0"
+SHARED_VERSION_INFO="1:0:0"
 SHLIB_VERSION_ARG=""
 
 # Checks for programs.

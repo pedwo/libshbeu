@@ -1,0 +1,121 @@
+libshbeu Release 1.0.0
+======================
+
+libshbeu: A library for controlling SH-Mobile BEU
+
+The source archive, and more information about the library are available from:
+
+	http://oss.renesas.com/modules/document/?libshbeu
+
+This is the first public release of libshbeu. It contains:
+
+ * src/libshbeu: the libshbeu shared library
+ * src/tools: commandline tools
+
+
+New in this release
+-------------------
+
+This release changes the API to use virtual addresses rather than physical
+addresses. If the virtual address corresponds to a contiguous buffer that can
+be directly accessed by the BEU (i.e. allocated or registered with UIOMux), no
+copying is performed. Otherwise the data is copied accordingly.
+
+
+libshbeu API
+------------
+
+libshbeu allows both synchronous and asynchronous access to the BEU. The
+synchronous API provides a one-shot function shbeu_blend(). The asychronous API
+replaces this with a similar but non-blocking function, shbeu_start_blend(),
+and a corresponding shbeu_wait().
+
+Please see doc/libshbeu/html/index.html for API details.
+
+
+shbeu-display
+-------------
+
+shbeu-display is a commandline program for displaying raw image or video files.
+It uses the SH-Mobile BEU to perform simultaneous colorspace conversion and
+blending on each input frame. It allows the user to pan the foremost image.
+
+	Usage: shbeu-display [options] -i <input file>
+	Overlays raw image data using the SH-Mobile BEU and displays on screen.
+	Options and input file can be specified for up to 3 inputs, e.g.
+	  shbeu-display -s vga -i vga.yuv -s qvga -i qvga.rgb -s qcif -i qcif.rgb
+
+	Input options
+	  -c, --input-colorspace (RGB565, RGBx888, NV12, YCbCr420, NV16, YCbCr422)
+		                     Specify input colorspace
+	  -s, --input-size       Set the input image size (qcif, cif, qvga, vga, d1, 720p)
+
+	Control keys
+	  Space key              Read next frame
+	  Cursor keys            Pan
+	  =                      Reset panning
+	  q                      Quit
+
+	Miscellaneous options
+	  -h, --help             Display this help and exit
+	  -v, --version          Output version information and exit
+
+	File extensions are interpreted as follows unless otherwise specified:
+	  .yuv    YCbCr420
+	  .420    YCbCr420
+	  .422    YCbCr422
+	  .rgb    RGB565
+	  .565    RGB565
+	  .x888   RGBx888
+
+
+Kernel configuration
+--------------------
+
+libshbeu uses the Linux kernel UIO support for the SH-Mobile BEU, this is not
+in the mainline kernel. You will have to manually add this capability.
+
+The following kernel boot option reserves physically contiguous memory for BEU
+use:
+
+    memchunk.beu0=4m
+
+Changes
+-------
+
+This release includes the following changes since version 0.1.0:
+
+Phil Edworthy (17):
+      Fix required version of UIOmux
+      Change allocation of temp HW buffer so it's a single block.
+      Fix bugs in checking size of output buf & handling non-SH bufs
+      Tools: Fix format check for per-pixel alpha on ARGB32
+      Change API so surfaces are defined in same way shveu
+      Minor API change; Reworked handling of non-HW buffs
+      Change buffer types to match shveu library.
+      Add support for normal (malloc'd) buffer I/O.
+      Change API from physical addrs to virt addrs
+      Change API to use SH formats rather than v4l2 ones
+      tools: Remove display format function (removes v4l2 dependency)
+      Add const qualifier to surfaces
+      RGB24 (packed) support fixed.
+      Remove local m4 macro as it's not needed
+      Add 24-bit RGB input and 24-bit BGR in/out support.
+      Check the size of the output surface is big enough
+      Fix warning and add check on destination surface
+
+Andreas Shimokawa (1):
+      Allow ARGB inputs (from Andreas Shimokawa)
+
+ Makefile.am               |    2 -
+ configure.ac              |   18 +--
+ include/shbeu/shbeu.h     |  188 ++++++++++++++++++--
+ m4/as-ac-expand.m4        |   43 -----
+ src/libshbeu/beu.c        |  418 +++++++++++++++++++++++++++++++--------------
+ src/libshbeu/shbeu_regs.h |    5 +-
+ src/tools/display.c       |   10 +-
+ src/tools/display.h       |    8 -
+ src/tools/shbeu-display.c |  360 ++++++++++++++++++++++++++++-----------
+ 9 files changed, 725 insertions(+), 327 deletions(-)
+ delete mode 100644 m4/as-ac-expand.m4
+
