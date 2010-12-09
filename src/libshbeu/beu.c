@@ -414,28 +414,21 @@ shbeu_start_blend(
 	const struct shbeu_surface *src_check;
 	unsigned long bblcr1 = 0;
 	unsigned long bblcr0 = 0;
-	struct shbeu_surface *src1;
-	struct shbeu_surface *src2;
-	struct shbeu_surface *src3;
-	struct shbeu_surface *dest;
+	struct shbeu_surface local_src1;
+	struct shbeu_surface local_src2;
+	struct shbeu_surface local_src3;
+	struct shbeu_surface local_dest;
+	struct shbeu_surface *src1 = NULL;
+	struct shbeu_surface *src2 = NULL;
+	struct shbeu_surface *src3 = NULL;
+	struct shbeu_surface *dest = NULL;
 
 	debug_info("in");
 
-	src1 = (src1_in != NULL) ? &pvt->src1_hw : NULL;
-	src2 = (src2_in != NULL) ? &pvt->src2_hw : NULL;
-	src3 = (src3_in != NULL) ? &pvt->src3_hw : NULL;
-	dest = (dest_in != NULL) ? &pvt->dest_hw : NULL;
-
-	/* Keep track of the user surfaces */
-	pvt->p_src1_user = (src1_in != NULL) ? &pvt->src1_user : NULL;
-	pvt->p_src2_user = (src2_in != NULL) ? &pvt->src2_user : NULL;
-	pvt->p_src3_user = (src3_in != NULL) ? &pvt->src3_user : NULL;
-	pvt->p_dest_user = (dest_in != NULL) ? &pvt->dest_user : NULL;
-
-	if (src1_in) pvt->src1_user = *src1_in;
-	if (src2_in) pvt->src2_user = *src2_in;
-	if (src3_in) pvt->src3_user = *src3_in;
-	if (dest_in) pvt->dest_user = *dest_in;
+	if (src1_in) src1 = &local_src1;
+	if (src2_in) src2 = &local_src2;
+	if (src3_in) src3 = &local_src3;
+	if (dest_in) dest = &local_dest;
 
 	/* Check we have been passed at least an input and an output */
 	if (!pvt || !src1_in || !dest_in)
@@ -459,10 +452,28 @@ shbeu_start_blend(
 	if (get_hw_surface(pvt->uiomux, dest, dest_in) < 0)
 		return -1;
 
-	copy_surface(&src1->s, &src1_in->s);
-	copy_surface(&src2->s, &src2_in->s);
-	copy_surface(&src3->s, &src3_in->s);
+	if (src1_in) copy_surface(&src1->s, &src1_in->s);
+	if (src2_in) copy_surface(&src2->s, &src2_in->s);
+	if (src3_in) copy_surface(&src3->s, &src3_in->s);
 
+	uiomux_lock (pvt->uiomux, UIOMUX_SH_BEU);
+
+	/* Keep track of the user surfaces */
+	pvt->p_src1_user = (src1_in != NULL) ? &pvt->src1_user : NULL;
+	pvt->p_src2_user = (src2_in != NULL) ? &pvt->src2_user : NULL;
+	pvt->p_src3_user = (src3_in != NULL) ? &pvt->src3_user : NULL;
+	pvt->p_dest_user = (dest_in != NULL) ? &pvt->dest_user : NULL;
+
+	if (src1_in) pvt->src1_user = *src1_in;
+	if (src2_in) pvt->src2_user = *src2_in;
+	if (src3_in) pvt->src3_user = *src3_in;
+	if (dest_in) pvt->dest_user = *dest_in;
+
+	/* Keep track of the actual surfaces used */
+	pvt->src1_hw = local_src1;
+	pvt->src2_hw = local_src2;
+	pvt->src3_hw = local_src3;
+	pvt->dest_hw = local_dest;
 	src_check = src1;
 
 	/* Ensure src2 and src3 formats are the same type (only input 1 on the
@@ -486,8 +497,6 @@ shbeu_start_blend(
 			}
 		}
 	}
-
-	uiomux_lock (pvt->uiomux, UIOMUX_SH_BEU);
 
 	if (read_reg(ump, BSTAR)) {
 		debug_info("BEU appears to be running already...");
@@ -595,13 +604,18 @@ shbeu_wait(SHBEU *pvt)
 		;
 
 	/* If we had to allocate hardware output buffer, copy the contents */
-	copy_surface(&pvt->dest_user.s, &pvt->dest_hw.s);
+	if (pvt->p_dest_user)
+		copy_surface(&pvt->p_dest_user->s, &pvt->dest_hw.s);
 
 	/* Free any temporary hardware buffers */
-	free_temp_buf(pvt, &pvt->p_dest_user->s, &pvt->dest_hw.s);
-	free_temp_buf(pvt, &pvt->p_src3_user->s, &pvt->src3_hw.s);
-	free_temp_buf(pvt, &pvt->p_src2_user->s, &pvt->src2_hw.s);
-	free_temp_buf(pvt, &pvt->p_src1_user->s, &pvt->src1_hw.s);
+	if (pvt->p_dest_user)
+		free_temp_buf(pvt, &pvt->p_dest_user->s, &pvt->dest_hw.s);
+	if (pvt->p_src3_user)
+		free_temp_buf(pvt, &pvt->p_src3_user->s, &pvt->src3_hw.s);
+	if (pvt->p_src2_user)
+		free_temp_buf(pvt, &pvt->p_src2_user->s, &pvt->src2_hw.s);
+	if (pvt->p_src1_user)
+		free_temp_buf(pvt, &pvt->p_src1_user->s, &pvt->src1_hw.s);
 
 	uiomux_unlock(pvt->uiomux, UIOMUX_SH_BEU);
 
