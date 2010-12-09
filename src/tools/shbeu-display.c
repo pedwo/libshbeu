@@ -533,7 +533,7 @@ int read_image_from_file(surface_t *s)
 		/* Read input */
 		bytes_read = read_surface(s->filehandle, surface);
 		if (bytes_read != s->size) {
-			if (feof(s->filehandle)) {
+			if (bytes_read >= 0) {
 				run = 0;
 			} else {
 				fprintf (stderr, "error reading input file %s\n", s->filename);
