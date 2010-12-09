@@ -106,7 +106,7 @@ in the mainline kernel. You will have to manually add this capability.
 The following kernel boot option reserves physically contiguous memory for BEU
 use:
 
-    memchunk.beu=4m
+    memchunk.beu0=4m
 
 License
 -------
