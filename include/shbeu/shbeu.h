@@ -284,6 +284,15 @@ struct shbeu_surface {
 SHBEU *shbeu_open(void);
 
 /**
+ * Open a BEU device with the specified name.
+ * If more than one BEU is available on the platform, each BEU
+ * has a name such as 'BEU0', 'BEU1', and so on. This API will allow
+ * to open a specific BEU by shbeu_open_named("BEU0") for instance.
+ * \retval 0 Failure, otherwise BEU handle.
+ */
+SHBEU *shbeu_open_named(const char *name);
+
+/**
  * Close a BEU device.
  * \param beu BEU handle
  */

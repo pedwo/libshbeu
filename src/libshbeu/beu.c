@@ -70,6 +70,7 @@ struct uio_map {
 
 struct SHBEU {
 	UIOMux *uiomux;
+	uiomux_resource_t uiores;
 	struct uio_map uio_mmio;
 	struct shbeu_surface src1_hw;
 	struct shbeu_surface src2_hw;
@@ -147,7 +148,7 @@ static void copy_surface(
 
 /* Check/create surface that can be accessed by the hardware */
 static int get_hw_surface(
-	UIOMux * uiomux,
+	SHBEU *beu,
 	struct shbeu_surface *out_spec,
 	const struct shbeu_surface *in_spec)
 {
@@ -172,7 +173,7 @@ static int get_hw_surface(
 		if (in->pa) len += size_a(in->format, in->h * in->w);
 
 		/* One of the supplied buffers is not usable by the hardware! */
-		out->py = uiomux_malloc(uiomux, UIOMUX_SH_BEU, len, 32);
+		out->py = uiomux_malloc(beu->uiomux, beu->uiores, len, 32);
 		if (!out->py)
 			return -1;
 
@@ -197,7 +198,7 @@ static void free_temp_buf(SHBEU *beu, struct ren_vid_surface *user, struct ren_v
 		size_t len = size_y(hw->format, hw->h * hw->w);
 		if (hw->pc) len += size_c(hw->format, hw->h * hw->w);
 		if (hw->pa) len += size_a(hw->format, hw->h * hw->w);
-		uiomux_free(beu->uiomux, UIOMUX_SH_BEU, hw->py, len);
+		uiomux_free(beu->uiomux, beu->uiores, hw->py, len);
 	}
 }
 
@@ -227,7 +228,7 @@ static void write_reg(struct uio_map *ump, unsigned long value, int reg_nr)
 	*reg = value;
 }
 
-SHBEU *shbeu_open(void)
+SHBEU *shbeu_open_named(const char *name)
 {
 	SHBEU *beu;
 	int ret;
@@ -236,11 +237,18 @@ SHBEU *shbeu_open(void)
 	if (!beu)
 		goto err;
 
-	beu->uiomux = uiomux_open();
+	if (!name) {
+		beu->uiomux = uiomux_open();
+		beu->uiores = UIOMUX_SH_BEU;
+	} else {
+		const char *blocks[2] = { name, NULL };
+		beu->uiomux = uiomux_open_named(blocks);
+		beu->uiores = (1 << 0);
+	}
 	if (!beu->uiomux)
 		goto err;
 
-	ret = uiomux_get_mmio (beu->uiomux, UIOMUX_SH_BEU,
+	ret = uiomux_get_mmio (beu->uiomux, beu->uiores,
 		&beu->uio_mmio.address,
 		&beu->uio_mmio.size,
 		&beu->uio_mmio.iomem);
@@ -256,6 +264,11 @@ SHBEU *shbeu_open(void)
 err:
 	shbeu_close(beu);
 	return 0;
+}
+
+SHBEU *shbeu_open(void)
+{
+	return shbeu_open_named(NULL);
 }
 
 void shbeu_close(SHBEU *pvt)
@@ -443,20 +456,20 @@ shbeu_start_blend(
 		return -1;
 
 	/* surfaces - use buffers the hardware can access */
-	if (get_hw_surface(pvt->uiomux, src1, src1_in) < 0)
+	if (get_hw_surface(pvt, src1, src1_in) < 0)
 		return -1;
-	if (get_hw_surface(pvt->uiomux, src2, src2_in) < 0)
+	if (get_hw_surface(pvt, src2, src2_in) < 0)
 		return -1;
-	if (get_hw_surface(pvt->uiomux, src3, src3_in) < 0)
+	if (get_hw_surface(pvt, src3, src3_in) < 0)
 		return -1;
-	if (get_hw_surface(pvt->uiomux, dest, dest_in) < 0)
+	if (get_hw_surface(pvt, dest, dest_in) < 0)
 		return -1;
 
 	if (src1_in) copy_surface(&src1->s, &src1_in->s);
 	if (src2_in) copy_surface(&src2->s, &src2_in->s);
 	if (src3_in) copy_surface(&src3->s, &src3_in->s);
 
-	uiomux_lock (pvt->uiomux, UIOMUX_SH_BEU);
+	uiomux_lock (pvt->uiomux, pvt->uiores);
 
 	/* Keep track of the user surfaces */
 	pvt->p_src1_user = (src1_in != NULL) ? &pvt->src1_user : NULL;
@@ -585,7 +598,7 @@ shbeu_start_blend(
 	return 0;
 
 err:
-	uiomux_unlock(pvt->uiomux, UIOMUX_SH_BEU);
+	uiomux_unlock(pvt->uiomux, pvt->uiores);
 	return -1;
 }
 
@@ -594,7 +607,7 @@ shbeu_wait(SHBEU *pvt)
 {
 	debug_info("in");
 
-	uiomux_sleep(pvt->uiomux, UIOMUX_SH_BEU);
+	uiomux_sleep(pvt->uiomux, pvt->uiores);
 
 	/* Acknowledge interrupt, write 0 to bit 0 */
 	write_reg(&pvt->uio_mmio, 0x100, BEVTR);
@@ -617,7 +630,7 @@ shbeu_wait(SHBEU *pvt)
 	if (pvt->p_src1_user)
 		free_temp_buf(pvt, &pvt->p_src1_user->s, &pvt->src1_hw.s);
 
-	uiomux_unlock(pvt->uiomux, UIOMUX_SH_BEU);
+	uiomux_unlock(pvt->uiomux, pvt->uiores);
 
 	debug_info("out");
 }
