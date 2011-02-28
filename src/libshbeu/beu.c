@@ -29,6 +29,18 @@
 #include "shbeu/shbeu.h"
 #include "shbeu_regs.h"
 
+#include <endian.h>
+
+#if !defined(__LITTLE_ENDIAN__) && !defined(__BIG_ENDIAN__)
+
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define __LITTLE_ENDIAN__
+#elif __BYTE_ORDER == __BIG_ENDIAN
+#define __BIG_ENDIAN__
+#endif
+
+#endif
+
 /* #define DEBUG 2 */
 
 #ifdef DEBUG
