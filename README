@@ -60,34 +60,6 @@ blending on each input frame. It allows the user to pan the foremost image.
 	  .x888   RGBx888
 
 
-Testing
--------
-The library has been tested on an MS7724 development board (SH7724 processor)
-with an 800x480 LCD using the shbeu-display tool with the following command
-lines:
-	shbeu-display -s vga -i vga.rgb
-	shbeu-display -s vga -i vga.yuv
-
-	shbeu-display -s vga -i vga.rgb -s qvga -i qvga.rgb
-	shbeu-display -s vga -i vga.rgb -s qvga -i qvga.yuv
-	shbeu-display -s vga -i vga.yuv -s qvga -i qvga.rgb
-	shbeu-display -s vga -i vga.yuv -s qvga -i qvga.yuv
-
-	shbeu-display -s vga -i vga.rgb -s qvga -i qvga.rgb -s qcif -i qcif.rgb
-	shbeu-display -s vga -i vga.rgb -s qvga -i qvga.rgb -s qcif -i qcif.yuv
-	shbeu-display -s vga -i vga.rgb -s qvga -i qvga.yuv -s qcif -i qcif.rgb
-	shbeu-display -s vga -i vga.rgb -s qvga -i qvga.yuv -s qcif -i qcif.yuv
-	shbeu-display -s vga -i vga.yuv -s qvga -i qvga.rgb -s qcif -i qcif.rgb
-	shbeu-display -s vga -i vga.yuv -s qvga -i qvga.rgb -s qcif -i qcif.yuv
-	shbeu-display -s vga -i vga.yuv -s qvga -i qvga.yuv -s qcif -i qcif.rgb
-	shbeu-display -s vga -i vga.yuv -s qvga -i qvga.yuv -s qcif -i qcif.yuv
-
-	shbeu-display -s vga -i vga.422 -s qvga -i qvga.yuv
-	shbeu-display -s vga -i vga.x888 -s qvga -i qvga.yuv
-
-Note: The destination surface in all these cases is RGB565.
-
-
 SH-Mobile
 ---------
 
