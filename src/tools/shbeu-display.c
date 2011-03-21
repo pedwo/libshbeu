@@ -432,11 +432,11 @@ static void create_per_pixel_alpha_argb(UIOMux *uiomux, struct ren_vid_surface *
 	}
 }
 
-static int read_plane(int filehandle, void *dst, int bpp, int h, int len, int dst_pitch)
+static ssize_t read_plane(int filehandle, void *dst, int bpp, int h, int len, int dst_pitch)
 {
 	int y;
 	int length = len * bpp;
-	int bytes_read = 0;
+	ssize_t bytes_read = 0;
 
 	for (y=0; y<h; y++) {
 		if ((bytes_read = read (filehandle, dst, length)) != length)
@@ -448,12 +448,12 @@ static int read_plane(int filehandle, void *dst, int bpp, int h, int len, int ds
 }
 
 /* Read frame from a file */
-static int read_surface(
+static ssize_t read_surface(
 	int filehandle,
 	struct ren_vid_surface *out)
 {
 	const struct format_info *fmt;
-	int bytes_read, len = 0;
+	ssize_t bytes_read, len = 0;
 
 	fmt = &fmts[out->format];
 
@@ -516,7 +516,7 @@ int read_image_from_file(surface_t *s)
 	struct bmpfile_header header;
 	struct bmp_dib_v3_header dib;
 	struct ren_vid_surface *surface = &s->spec.s;
-	int bytes_read;
+	ssize_t bytes_read;
 
 	if (s->filename) {
 		/* Basic bmp support - skip header */
@@ -532,12 +532,12 @@ int read_image_from_file(surface_t *s)
 
 		/* Read input */
 		bytes_read = read_surface(s->filehandle, surface);
-		if (bytes_read != s->size) {
-			if (bytes_read >= 0) {
-				run = 0;
-			} else {
-				fprintf (stderr, "error reading input file %s\n", s->filename);
-			}
+		if (bytes_read < 0) {
+			fprintf (stderr, "error reading input file %s\n", s->filename);
+			exit(1);
+		}
+		if ((unsigned int)bytes_read != s->size) {
+			run = 0;
 		}
 	}
 
