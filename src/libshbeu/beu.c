@@ -221,9 +221,9 @@ static void free_temp_buf(SHBEU *beu, struct ren_vid_surface *user, struct ren_v
 
 /* Helper functions for reading registers. */
 
-static unsigned long read_reg(struct uio_map *ump, int reg_nr)
+static unsigned long read_reg(void *base_addr, int reg_nr)
 {
-	volatile unsigned long *reg = ump->iomem + reg_nr;
+	volatile unsigned long *reg = base_addr + reg_nr;
 	unsigned long value = *reg;
 
 #if (DEBUG == 2)
@@ -233,9 +233,9 @@ static unsigned long read_reg(struct uio_map *ump, int reg_nr)
 	return value;
 }
 
-static void write_reg(struct uio_map *ump, unsigned long value, int reg_nr)
+static void write_reg(void *base_addr, unsigned long value, int reg_nr)
 {
-	volatile unsigned long *reg = ump->iomem + reg_nr;
+	volatile unsigned long *reg = base_addr + reg_nr;
 
 #if (DEBUG == 2)
 	fprintf(stderr, " write_reg[0x%X] = %lX\n", reg_nr, value);
@@ -298,7 +298,7 @@ void shbeu_close(SHBEU *pvt)
 
 /* Setup input surface */
 static int
-setup_src_surface(SHBEU *beu, struct uio_map *ump, int index, const struct shbeu_surface *spec)
+setup_src_surface(void *base_addr, int index, const struct shbeu_surface *spec)
 {
 	const int offsets[] = {SRC1_BASE, SRC2_BASE, SRC3_BASE};
 	int offset = offsets[index];
@@ -340,38 +340,38 @@ setup_src_surface(SHBEU *beu, struct uio_map *ump, int index, const struct shbeu
 
 	/* Surface pitch */
 	tmp = size_y(surface->format, surface->pitch);
-	write_reg(ump, tmp, BSMWR + offset);
+	write_reg(base_addr, tmp, BSMWR + offset);
 
-	write_reg(ump, (surface->h << 16) | surface->w, BSSZR + offset);
-	write_reg(ump, Y, BSAYR + offset);
-	write_reg(ump, C, BSACR + offset);
-	write_reg(ump, A, BSAAR + offset);
+	write_reg(base_addr, (surface->h << 16) | surface->w, BSSZR + offset);
+	write_reg(base_addr, Y, BSAYR + offset);
+	write_reg(base_addr, C, BSACR + offset);
+	write_reg(base_addr, A, BSAAR + offset);
 
 	/* Surface format */
 	tmp = info->bpXfr;
 	if (is_ycbcr(surface->format) && surface->pa)
 		tmp += CHRR_YCBCR_ALPHA;
-	write_reg(ump, tmp, BSIFR + offset);
+	write_reg(base_addr, tmp, BSIFR + offset);
 
 	/* Position of overlay */
 	tmp = (spec->y << 16) | spec->x;
-	write_reg(ump, tmp, BLOCR1 + index*4);
+	write_reg(base_addr, tmp, BLOCR1 + index*4);
 
 #ifdef __LITTLE_ENDIAN__
 	/* byte/word swapping */
-	tmp = read_reg(ump, BSWPR);
+	tmp = read_reg(base_addr, BSWPR);
 	tmp |= BSWPR_MODSEL;
 	tmp |= (info->bswpr << index*8);
-	write_reg(ump, tmp, BSWPR);
+	write_reg(base_addr, tmp, BSWPR);
 #endif
 
 	/* Set alpha value for entire plane, if no alpha data */
-	tmp = read_reg(ump, BBLCR0);
+	tmp = read_reg(base_addr, BBLCR0);
 	if (surface->pa || surface->format == REN_ARGB32)
 		tmp |= (1 << (index+28));
 	else
 		tmp |= ((spec->alpha & 0xFF) << index*8);
-	write_reg(ump, tmp, BBLCR0);
+	write_reg(base_addr, tmp, BBLCR0);
 
 	return 0;
 }
@@ -380,7 +380,7 @@ setup_src_surface(SHBEU *beu, struct uio_map *ump, int index, const struct shbeu
 /* The dest size is defined by input surface 1. The output can be on a larger
    canvas by setting the pitch */
 static int
-setup_dst_surface(SHBEU *beu, struct uio_map *ump, const struct shbeu_surface *spec)
+setup_dst_surface(void *base_addr, const struct shbeu_surface *spec)
 {
 	unsigned long tmp;
 	const struct beu_format_info *info;
@@ -410,20 +410,20 @@ setup_dst_surface(SHBEU *beu, struct uio_map *ump, const struct shbeu_surface *s
 
 	/* Surface pitch */
 	tmp = size_y(dest->format, dest->pitch);
-	write_reg(ump, tmp, BDMWR);
+	write_reg(base_addr, tmp, BDMWR);
 
-	write_reg(ump, Y, BDAYR);
-	write_reg(ump, C, BDACR);
-	write_reg(ump, 0, BAFXR);
+	write_reg(base_addr, Y, BDAYR);
+	write_reg(base_addr, C, BDACR);
+	write_reg(base_addr, 0, BAFXR);
 
 	/* Surface format */
-	write_reg(ump, info->bpXfr, BPKFR);
+	write_reg(base_addr, info->bpXfr, BPKFR);
 
 #ifdef __LITTLE_ENDIAN__
 	/* byte/word swapping */
-	tmp = read_reg(ump, BSWPR);
+	tmp = read_reg(base_addr, BSWPR);
 	tmp |= info->bswpr << 4;
-	write_reg(ump, tmp, BSWPR);
+	write_reg(base_addr, tmp, BSWPR);
 #endif
 
 	return 0;
@@ -437,7 +437,6 @@ shbeu_start_blend(
 	const struct shbeu_surface *src3_in,
 	const struct shbeu_surface *dest_in)
 {
-	struct uio_map *ump = &pvt->uio_mmio;
 	unsigned long start_reg;
 	unsigned long control_reg;
 	const struct shbeu_surface *src_check;
@@ -451,6 +450,7 @@ shbeu_start_blend(
 	struct shbeu_surface *src2 = NULL;
 	struct shbeu_surface *src3 = NULL;
 	struct shbeu_surface *dest = NULL;
+	void *base_addr;
 
 	debug_info("in");
 
@@ -485,7 +485,10 @@ shbeu_start_blend(
 	if (src2_in) copy_surface(&src2->s, &src2_in->s);
 	if (src3_in) copy_surface(&src3->s, &src3_in->s);
 
+	/* NOTE: All register access must be inside this lock */
 	uiomux_lock (pvt->uiomux, pvt->uiores);
+
+	base_addr = pvt->uio_mmio.iomem;
 
 	/* Keep track of the user surfaces */
 	pvt->p_src1_user = (src1_in != NULL) ? &pvt->src1_user : NULL;
@@ -527,57 +530,57 @@ shbeu_start_blend(
 		}
 	}
 
-	if (read_reg(ump, BSTAR)) {
+	if (read_reg(base_addr, BSTAR)) {
 		debug_info("BEU appears to be running already...");
 	}
 
 	/* Reset */
-	write_reg(ump, 1, BBRSTR);
+	write_reg(base_addr, 1, BBRSTR);
 
 	/* Wait for BEU to stop */
-	while (read_reg(ump, BSTAR) & 1)
+	while (read_reg(base_addr, BSTAR) & 1)
 		;
 
 	/* Turn off register bank/plane access, access regs via Plane A */
-	write_reg(ump, 0, BRCNTR);
-	write_reg(ump, 0, BRCHR);
+	write_reg(base_addr, 0, BRCNTR);
+	write_reg(base_addr, 0, BRCHR);
 
 	/* Default location of surfaces is (0,0) */
-	write_reg(ump, 0, BLOCR1);
+	write_reg(base_addr, 0, BLOCR1);
 
 	/* Default to no byte swapping for all surfaces (YCbCr) */
-	write_reg(ump, 0, BSWPR);
+	write_reg(base_addr, 0, BSWPR);
 
 	/* Turn off transparent color comparison */
-	write_reg(ump, 0, BPCCR0);
+	write_reg(base_addr, 0, BPCCR0);
 
 	/* Turn on blending */
-	write_reg(ump, 0, BPROCR);
+	write_reg(base_addr, 0, BPROCR);
 
 	/* Not using "multi-window" capability */
-	write_reg(ump, 0, BMWCR0);
+	write_reg(base_addr, 0, BMWCR0);
 
 	/* Set parent surface; output to memory */
-	write_reg(ump, bblcr1 | BBLCR1_OUTPUT_MEM, BBLCR1);
+	write_reg(base_addr, bblcr1 | BBLCR1_OUTPUT_MEM, BBLCR1);
 
 	/* Set surface order */
-	write_reg(ump, bblcr0, BBLCR0);
+	write_reg(base_addr, bblcr0, BBLCR0);
 
-	if (setup_src_surface(pvt, ump, 0, src1) < 0)
+	if (setup_src_surface(base_addr, 0, src1) < 0)
 		goto err;
-	if (setup_src_surface(pvt, ump, 1, src2) < 0)
+	if (setup_src_surface(base_addr, 1, src2) < 0)
 		goto err;
-	if (setup_src_surface(pvt, ump, 2, src3) < 0)
+	if (setup_src_surface(base_addr, 2, src3) < 0)
 		goto err;
-	if (setup_dst_surface(pvt, ump, dest) < 0)
+	if (setup_dst_surface(base_addr, dest) < 0)
 		goto err;
 
 	if (src2) {
 		if (different_colorspace(src1->s.format, src2->s.format)) {
-			unsigned long bsifr = read_reg(ump, BSIFR + SRC1_BASE);
+			unsigned long bsifr = read_reg(base_addr, BSIFR + SRC1_BASE);
 			debug_info("Setting BSIFR1 IN1TE bit");
 			bsifr  |= (BSIFR1_IN1TE | BSIFR1_IN1TM);
-			write_reg(ump, bsifr, BSIFR + SRC1_BASE);
+			write_reg(base_addr, bsifr, BSIFR + SRC1_BASE);
 		}
 
 		src_check = src2;
@@ -585,29 +588,29 @@ shbeu_start_blend(
 
 	/* Is input 1 colourspace (after the colorspace convertor) RGB? */
 	if (is_rgb(src_check->s.format)) {
-		unsigned long bpkfr = read_reg(ump, BPKFR);
+		unsigned long bpkfr = read_reg(base_addr, BPKFR);
 		debug_info("Setting BPKFR RY bit");
 		bpkfr |= BPKFR_RY;
-		write_reg(ump, bpkfr, BPKFR);
+		write_reg(base_addr, bpkfr, BPKFR);
 	}
 
 	/* Is the output colourspace different to input? */
 	if (different_colorspace(dest->s.format, src_check->s.format)) {
-		unsigned long bpkfr = read_reg(ump, BPKFR);
+		unsigned long bpkfr = read_reg(base_addr, BPKFR);
 		debug_info("Setting BPKFR TE bit");
 		bpkfr |= (BPKFR_TM2 | BPKFR_TM | BPKFR_DITH1 | BPKFR_TE);
-		write_reg(ump, bpkfr, BPKFR);
+		write_reg(base_addr, bpkfr, BPKFR);
 	}
 
 	/* enable interrupt */
-	write_reg(ump, 1, BEIER);
+	write_reg(base_addr, 1, BEIER);
 
 	/* start operation */
 	start_reg = BESTR_BEIVK;
 	if (src1) start_reg |= BESTR_CHON1;
 	if (src2) start_reg |= BESTR_CHON2;
 	if (src3) start_reg |= BESTR_CHON3;
-	write_reg(ump, start_reg, BESTR);
+	write_reg(base_addr, start_reg, BESTR);
 
 	debug_info("out");
 
@@ -621,15 +624,17 @@ err:
 void
 shbeu_wait(SHBEU *pvt)
 {
+	void *base_addr = pvt->uio_mmio.iomem;
+
 	debug_info("in");
 
 	uiomux_sleep(pvt->uiomux, pvt->uiores);
 
 	/* Acknowledge interrupt, write 0 to bit 0 */
-	write_reg(&pvt->uio_mmio, 0x100, BEVTR);
+	write_reg(base_addr, 0x100, BEVTR);
 
 	/* Wait for BEU to stop */
-	while (read_reg(&pvt->uio_mmio, BSTAR) & 1)
+	while (read_reg(base_addr, BSTAR) & 1)
 		;
 
 	/* If we had to allocate hardware output buffer, copy the contents */
