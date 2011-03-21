@@ -25,6 +25,7 @@
 #include "config.h"
 #endif
 
+#include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
@@ -55,8 +56,8 @@
 
 struct beu_format_info {
 	ren_vid_format_t fmt;
-	unsigned long bpXfr;
-	unsigned long bswpr;
+	uint32_t bpXfr;
+	uint32_t bswpr;
 };
 
 static const struct beu_format_info beu_src_fmts[] = {
@@ -170,8 +171,6 @@ static int get_hw_surface(
 {
 	struct ren_vid_surface *out = &out_spec->s;
 	const struct ren_vid_surface *in = &in_spec->s;
-	unsigned long phys;
-	int y;
 	int alloc = 0;
 	size_t len;
 
@@ -221,10 +220,10 @@ static void free_temp_buf(SHBEU *beu, struct ren_vid_surface *user, struct ren_v
 
 /* Helper functions for reading registers. */
 
-static unsigned long read_reg(void *base_addr, int reg_nr)
+static uint32_t read_reg(void *base_addr, int reg_nr)
 {
-	volatile unsigned long *reg = base_addr + reg_nr;
-	unsigned long value = *reg;
+	volatile uint32_t *reg = base_addr + reg_nr;
+	uint32_t value = *reg;
 
 #if (DEBUG == 2)
 	fprintf(stderr, " read_reg[0x%X] returned %lX\n", reg_nr, value);
@@ -233,9 +232,9 @@ static unsigned long read_reg(void *base_addr, int reg_nr)
 	return value;
 }
 
-static void write_reg(void *base_addr, unsigned long value, int reg_nr)
+static void write_reg(void *base_addr, uint32_t value, int reg_nr)
 {
-	volatile unsigned long *reg = base_addr + reg_nr;
+	volatile uint32_t *reg = base_addr + reg_nr;
 
 #if (DEBUG == 2)
 	fprintf(stderr, " write_reg[0x%X] = %lX\n", reg_nr, value);
@@ -302,10 +301,10 @@ setup_src_surface(void *base_addr, int index, const struct shbeu_surface *spec)
 {
 	const int offsets[] = {SRC1_BASE, SRC2_BASE, SRC3_BASE};
 	int offset = offsets[index];
-	unsigned long tmp;
+	uint32_t tmp;
 	const struct beu_format_info *info;
 	const struct ren_vid_surface *surface = &spec->s;
-	unsigned long Y, C, A;
+	uint32_t Y, C, A;
 
 	/* Not having an overlay surface is valid */
 	if (!surface)
@@ -382,10 +381,10 @@ setup_src_surface(void *base_addr, int index, const struct shbeu_surface *spec)
 static int
 setup_dst_surface(void *base_addr, const struct shbeu_surface *spec)
 {
-	unsigned long tmp;
+	uint32_t tmp;
 	const struct beu_format_info *info;
 	const struct ren_vid_surface *dest = &spec->s;
-	unsigned long Y, C;
+	uint32_t Y, C;
 
 	if (!dest)
 		return -1;
@@ -437,11 +436,11 @@ shbeu_start_blend(
 	const struct shbeu_surface *src3_in,
 	const struct shbeu_surface *dest_in)
 {
-	unsigned long start_reg;
-	unsigned long control_reg;
+	uint32_t start_reg;
+	uint32_t control_reg;
 	const struct shbeu_surface *src_check;
-	unsigned long bblcr1 = 0;
-	unsigned long bblcr0 = 0;
+	uint32_t bblcr1 = 0;
+	uint32_t bblcr0 = 0;
 	struct shbeu_surface local_src1;
 	struct shbeu_surface local_src2;
 	struct shbeu_surface local_src3;
@@ -577,7 +576,7 @@ shbeu_start_blend(
 
 	if (src2) {
 		if (different_colorspace(src1->s.format, src2->s.format)) {
-			unsigned long bsifr = read_reg(base_addr, BSIFR + SRC1_BASE);
+			uint32_t bsifr = read_reg(base_addr, BSIFR + SRC1_BASE);
 			debug_info("Setting BSIFR1 IN1TE bit");
 			bsifr  |= (BSIFR1_IN1TE | BSIFR1_IN1TM);
 			write_reg(base_addr, bsifr, BSIFR + SRC1_BASE);
@@ -588,7 +587,7 @@ shbeu_start_blend(
 
 	/* Is input 1 colourspace (after the colorspace convertor) RGB? */
 	if (is_rgb(src_check->s.format)) {
-		unsigned long bpkfr = read_reg(base_addr, BPKFR);
+		uint32_t bpkfr = read_reg(base_addr, BPKFR);
 		debug_info("Setting BPKFR RY bit");
 		bpkfr |= BPKFR_RY;
 		write_reg(base_addr, bpkfr, BPKFR);
@@ -596,7 +595,7 @@ shbeu_start_blend(
 
 	/* Is the output colourspace different to input? */
 	if (different_colorspace(dest->s.format, src_check->s.format)) {
-		unsigned long bpkfr = read_reg(base_addr, BPKFR);
+		uint32_t bpkfr = read_reg(base_addr, BPKFR);
 		debug_info("Setting BPKFR TE bit");
 		bpkfr |= (BPKFR_TM2 | BPKFR_TM | BPKFR_DITH1 | BPKFR_TE);
 		write_reg(base_addr, bpkfr, BPKFR);
