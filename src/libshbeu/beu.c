@@ -414,7 +414,7 @@ setup_dst_surface(void *base_addr, const struct shbeu_surface *spec)
 	fprintf(stderr, "\tY/RGB (0x%X), C (0x%X)\n", Y, C);
 #endif
 
-	if (!dest->py) {
+	if (!Y) {
 		debug_info("ERR: Could not get phys address from uiomux!");
 		return -1;
 	}
