@@ -226,7 +226,7 @@ static uint32_t read_reg(void *base_addr, int reg_nr)
 	uint32_t value = *reg;
 
 #if (DEBUG == 2)
-	fprintf(stderr, " read_reg[0x%X] returned %lX\n", reg_nr, value);
+	fprintf(stderr, " read_reg[0x%X] returned %X\n", reg_nr, value);
 #endif
 
 	return value;
@@ -237,7 +237,7 @@ static void write_reg(void *base_addr, uint32_t value, int reg_nr)
 	volatile uint32_t *reg = base_addr + reg_nr;
 
 #if (DEBUG == 2)
-	fprintf(stderr, " write_reg[0x%X] = %lX\n", reg_nr, value);
+	fprintf(stderr, " write_reg[0x%X] = %X\n", reg_nr, value);
 #endif
 
 	*reg = value;
@@ -277,6 +277,7 @@ SHBEU *shbeu_open_named(const char *name)
 	return beu;
 
 err:
+	debug_info("ERR: error detected");
 	shbeu_close(beu);
 	return 0;
 }
@@ -311,8 +312,10 @@ setup_src_surface(void *base_addr, int index, const struct shbeu_surface *spec)
 		return 0;
 
 	info = src_fmt_info(surface->format);
-	if (!info)
+	if (!info) {
+		debug_info("ERR: Invalid surface format!");
 		return -1;
+	}
 
 	Y = uiomux_all_virt_to_phys(surface->py);
 	C = uiomux_all_virt_to_phys(surface->pc);
@@ -321,21 +324,29 @@ setup_src_surface(void *base_addr, int index, const struct shbeu_surface *spec)
 #ifdef DEBUG
 	fprintf(stderr, "\nsrc%d: fmt=%d: width=%d, height=%d pitch=%d\n",
 		index+1, surface->format, surface->w, surface->h, surface->pitch);
-	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX), alpha (0x%lX)\n", Y, C, A);
+	fprintf(stderr, "\tY/RGB (0x%X), C (0x%X), alpha (0x%X)\n", Y, C, A);
 	fprintf(stderr, "\toffset=(%d,%d), alternative alpha =%u\n", spec->x, spec->y, spec->alpha);
 #endif
 
-	if (!Y)
+	if (!Y) {
+		debug_info("ERR: Could not get phys address from uiomux!");
 		return -1;
+	}
 
-	if ((surface->w % 4) || (surface->pitch % 4) || (surface->h % 4))
+	if ((surface->w % 4) || (surface->pitch % 4) || (surface->h % 4)) {
+		debug_info("ERR: Width/height invalid!");
 		return -1;
+	}
 
-	if ((surface->w > 4092) || (surface->pitch > 4092) || (surface->h > 4092))
+	if ((surface->w > 4092) || (surface->pitch > 4092) || (surface->h > 4092)) {
+		debug_info("ERR: Width/height too big!");
 		return -1;
+	}
 
-	if (is_rgb(surface->format) && surface->pa)
+	if (is_rgb(surface->format) && surface->pa) {
+		debug_info("ERR: RGB with alpha not supported!");
 		return -1;
+	}
 
 	/* Surface pitch */
 	tmp = size_y(surface->format, surface->pitch);
@@ -390,22 +401,28 @@ setup_dst_surface(void *base_addr, const struct shbeu_surface *spec)
 		return -1;
 
 	info = dst_fmt_info(dest->format);
-	if (!info)
+	if (!info) {
+		debug_info("ERR: Invalid surface format!");
 		return -1;
+	}
 
 	Y = uiomux_all_virt_to_phys(dest->py);
 	C = uiomux_all_virt_to_phys(dest->pc);
 
 #ifdef DEBUG
 	fprintf(stderr, "\ndest: fmt=%d: pitch=%d\n", dest->format, dest->pitch);
-	fprintf(stderr, "\tY/RGB (0x%lX), C (0x%lX)\n", Y, C);
+	fprintf(stderr, "\tY/RGB (0x%X), C (0x%X)\n", Y, C);
 #endif
 
-	if (!dest->py)
+	if (!dest->py) {
+		debug_info("ERR: Could not get phys address from uiomux!");
 		return -1;
+	}
 
-	if ((dest->pitch % 4) || (dest->pitch > 4092))
+	if ((dest->pitch % 4) || (dest->pitch > 4092)) {
+		debug_info("ERR: pitch invalid!");
 		return -1;
+	}
 
 	/* Surface pitch */
 	tmp = size_y(dest->format, dest->pitch);
@@ -459,26 +476,40 @@ shbeu_start_blend(
 	if (dest_in) dest = &local_dest;
 
 	/* Check we have been passed at least an input and an output */
-	if (!pvt || !src1_in || !dest_in)
+	if (!pvt || !src1_in || !dest_in) {
+		debug_info("ERR: Invalid input - need at least 1 src and dest");
 		return -1;
+	}
 
 	/* Check the size of the destination surface is big enough */
-	if (dest_in->s.pitch < src1_in->s.w)
+	if (dest_in->s.pitch < src1_in->s.w) {
+		debug_info("ERR: Size of the destination surface is not big enough");
 		return -1;
+	}
 
 	/* Check the size of the destination surface matches the parent surface */
-	if (dest_in->s.w != src1_in->s.w || dest_in->s.h != src1_in->s.h)
+	if (dest_in->s.w != src1_in->s.w || dest_in->s.h != src1_in->s.h) {
+		debug_info("ERR: Size of the destination surface does NOT match the parent surface");
 		return -1;
+	}
 
 	/* surfaces - use buffers the hardware can access */
-	if (get_hw_surface(pvt, src1, src1_in) < 0)
+	if (get_hw_surface(pvt, src1, src1_in) < 0) {
+		debug_info("ERR: src1 is not accessible by hardware");
 		return -1;
-	if (get_hw_surface(pvt, src2, src2_in) < 0)
+	}
+	if (get_hw_surface(pvt, src2, src2_in) < 0) {
+		debug_info("ERR: src2 is not accessible by hardware");
 		return -1;
-	if (get_hw_surface(pvt, src3, src3_in) < 0)
+	}
+	if (get_hw_surface(pvt, src3, src3_in) < 0) {
+		debug_info("ERR: src3 is not accessible by hardware");
 		return -1;
-	if (get_hw_surface(pvt, dest, dest_in) < 0)
+	}
+	if (get_hw_surface(pvt, dest, dest_in) < 0) {
+		debug_info("ERR: dest is not accessible by hardware");
 		return -1;
+	}
 
 	if (src1_in) copy_surface(&src1->s, &src1_in->s);
 	if (src2_in) copy_surface(&src2->s, &src2_in->s);
@@ -616,6 +647,7 @@ shbeu_start_blend(
 	return 0;
 
 err:
+	debug_info("ERR: error detected");
 	uiomux_unlock(pvt->uiomux, pvt->uiores);
 	return -1;
 }
