@@ -15,7 +15,7 @@ libshbeu API
 ------------
 
 libshbeu allows both synchronous and asynchronous access to the BEU. The
-synchronous API provides a one-shot function shbeu_blend(). The asychronous API
+synchronous API provides a one-shot function shbeu_blend(). The asynchronous API
 replaces this with a similar but non-blocking function, shbeu_start_blend(),
 and a corresponding shbeu_wait().
 
