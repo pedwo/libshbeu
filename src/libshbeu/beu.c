@@ -616,7 +616,7 @@ shbeu_start_blend(
 		src_check = src2;
 	}
 
-	/* Is input 1 colourspace (after the colorspace convertor) RGB? */
+	/* Is input 1 colorspace (after the colorspace converter) RGB? */
 	if (is_rgb(src_check->s.format)) {
 		uint32_t bpkfr = read_reg(base_addr, BPKFR);
 		debug_info("Setting BPKFR RY bit");
@@ -624,7 +624,7 @@ shbeu_start_blend(
 		write_reg(base_addr, bpkfr, BPKFR);
 	}
 
-	/* Is the output colourspace different to input? */
+	/* Is the output colorspace different to input? */
 	if (different_colorspace(dest->s.format, src_check->s.format)) {
 		uint32_t bpkfr = read_reg(base_addr, BPKFR);
 		debug_info("Setting BPKFR TE bit");
