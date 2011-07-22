@@ -487,7 +487,7 @@ static ssize_t read_surface(
 struct bmpfile_magic {
   unsigned char magic[2];
 };
- 
+
 struct bmpfile_header {
   uint32_t filesz;
   uint16_t creator1;
@@ -696,7 +696,7 @@ int main (int argc, char * argv[])
 #else
 		current_surface->pitch = current_surface->w;
 #endif
-		if (setup_input_surface(progname, uiomux, i, current) < 0) 
+		if (setup_input_surface(progname, uiomux, i, current) < 0)
 			goto exit_err;
 	}
 

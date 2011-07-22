@@ -4,4 +4,3 @@
 shbeuincludedir = $(includedir)/shbeu
 shbeuinclude_HEADERS = \
 	shbeu.h
-

@@ -14,4 +14,3 @@ LOCAL_SHARED_LIBRARIES := libcutils
 LOCAL_MODULE := libshbeu
 LOCAL_PRELINK_MODULE := false
 include $(BUILD_SHARED_LIBRARY)
-

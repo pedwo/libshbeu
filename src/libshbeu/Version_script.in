@@ -13,7 +13,7 @@
 		shbeu_start_blend;
 		shbeu_wait;
 		shbeu_blend;
-		
+
         local:
                 *;
 };

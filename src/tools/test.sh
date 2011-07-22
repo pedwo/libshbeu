@@ -25,4 +25,3 @@ for l1 in 888 rgb yuv x888; do \
     done; \
   done; \
 done
-

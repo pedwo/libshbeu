@@ -160,4 +160,3 @@ int display_flip(DISPLAY *disp)
 
 	return 1;
 }
-
